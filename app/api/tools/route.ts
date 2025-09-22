@@ -1,29 +1,9 @@
 // app/api/tools/route.ts
-// Endpoint Vapi "Custom Tool" calls (create_booking, quote_estimate, handoff_sms, take_payment, update_crm_note)
+import { NextRequest, NextResponse } from "next/server";
 
-export const runtime = 'nodejs';
-export const dynamic = 'force-dynamic';
-
-// ---- helpers ---------------------------------------------------------------
-function json(data: any, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { 'content-type': 'application/json' },
-  });
-}
-function ok(data: any) { return json({ ok: true, data }); }
-function err(msg: string, code = 400) { return json({ ok: false, error: msg }, code); }
-
-async function isAuthorized(req: Request) {
-  // Optional shared-secret check (set WEBHOOK_SHARED_SECRET in Vercel to enable)
-  const configured = process.env.WEBHOOK_SHARED_SECRET;
-  if (!configured) return true;
-  const got = req.headers.get('x-shared-secret');
-  return got === configured;
-}
-
-// Allow all fields we might see from different tool callers
-type ToolPayload = {
+// Vapi can send the tool name via header (preferred) or in the body.
+// We keep this very permissive so it never crashes.
+type ToolBody = {
   toolName?: string;
   name?: string;
   input?: any;
@@ -31,66 +11,95 @@ type ToolPayload = {
   [k: string]: any;
 };
 
-// ---- route -----------------------------------------------------------------
-export async function POST(req: Request) {
-  if (!(await isAuthorized(req))) return err('unauthorized', 401);
+export async function POST(req: NextRequest) {
+  let body: ToolBody = {};
+  try {
+    body = (await req.json()) as ToolBody;
+  } catch {
+    body = {};
+  }
 
-  let payload: ToolPayload = {};
-  try { payload = (await req.json()) as ToolPayload; } catch {}
+  const headerTool = req.headers.get("x-tool-name") || "";
+  const bodyTool = body.toolName || body.name || "";
+  const toolName = (headerTool || bodyTool || "").toString();
 
-  // Tool name can come from a header or the body
-  const headerTool = req.headers.get('x-tool-name') ?? '';
-  const bodyTool = payload.toolName ?? payload.name ?? '';
-  const toolName = String(headerTool || bodyTool || '').trim();
-
-  // Arguments can be under args, input, or at the top level
-  const args = payload.args ?? payload.input ?? payload;
-
-  console.log('TOOL_CALL', { toolName, args });
+  // Vapi sometimes puts args in body.args or body.input or directly in body
+  const args = (body.args ?? body.input ?? body) as any;
 
   switch (toolName) {
-    case 'create_booking': {
-      const dur = Number(args?.duration_minutes ?? 90);
-      // TODO: write to Supabase/Calendar here
-      return ok({
-        confirmation: 'BK-' + Math.random().toString(36).slice(2, 8),
-        duration_minutes: dur,
+    case "create_booking": {
+      // Simulate a successful booking so the agent can confirm aloud.
+      const bookingId = "bk_" + Math.random().toString(36).slice(2, 10);
+      const startISO =
+        typeof args?.requested_start === "string"
+          ? args.requested_start
+          : new Date(Date.now() + 24 * 3600 * 1000).toISOString(); // tomorrow as a fallback
+
+      const window = args?.window || "8–11"; // keep it simple for now
+
+      const booking = {
+        id: bookingId,
+        job_type: args?.job_type || "diagnostic",
+        start: startISO,
+        window,
+        name: args?.name,
+        phone: args?.phone,
+        email: args?.email,
+        address: args?.address,
+        city: args?.city,
+        state: args?.state,
+        zip: args?.zip,
+        summary: args?.summary,
+        equipment: args?.equipment,
+        priority: args?.priority || "standard",
+      };
+
+      return NextResponse.json({ ok: true, booking });
+    }
+
+    case "quote_estimate": {
+      // Simple bands; the agent will phrase as “range estimate until diagnosis.”
+      const estimates = {
+        diagnostic: { low: 79, high: 149 },
+        maintenance: { low: 169, high: 289 },
+        capacitor: { low: 150, high: 350 },
+        blower_motor: { low: 600, high: 1200 },
+        refrigerant_per_lb: { low: 90, high: 150 },
+        inducer_motor: { low: 750, high: 1400 },
+      };
+      return NextResponse.json({ ok: true, estimates });
+    }
+
+    case "handoff_sms": {
+      // We’re not sending real SMS here; just acknowledge so the agent proceeds.
+      // (You can later wire Twilio or Vapi SMS and still return ok: true.)
+      return NextResponse.json({
+        ok: true,
+        sent: true,
+        note: "stubbed handoff_sms acknowledged",
       });
     }
 
-    case 'quote_estimate': {
-      const bands: Record<string, string> = {
-        diagnostic: '$89–$149 (credited to repair > $300)',
-        maintenance: '$149–$249 (one system)',
-        'install-estimate': 'Free in-home estimate',
-        capacitor: '$150–$350 parts+labor',
-        contactor: '$150–$300 parts+labor',
-        'blower-motor': '$450–$950 parts+labor',
-        'refrigerant-per-lb': '$90–$180/lb (R410A)',
-        'inducer-motor': '$600–$1,200 parts+labor',
-      };
-      const msg = bands[args?.task] ?? 'Technician must diagnose for an accurate estimate.';
-      return ok({ estimate: msg });
-    }
-
-    case 'handoff_sms': {
-      // TODO: integrate Twilio SMS later
-      console.log('SMS →', args?.phone, args?.message);
-      return ok({ queued: true });
-    }
-
-    case 'take_payment': {
-      // TODO: create Stripe Payment Link
-      return ok({ payment_url: 'https://example.com/pay/demo' });
-    }
-
-    case 'update_crm_note': {
-      // TODO: write to Supabase/CRM
-      console.log('CRM NOTE', args);
-      return ok({ saved: true });
+    case "take_payment": {
+      // Stub a secure checkout link
+      const link =
+        "https://pay.example.com/checkout/" +
+        Math.random().toString(36).slice(2, 10);
+      return NextResponse.json({
+        ok: true,
+        payment_link: link,
+        expires_in_sec: 900,
+      });
     }
 
     default:
-      return err(`unknown tool: ${toolName || '(empty)'}`);
+      return NextResponse.json(
+        { ok: false, error: "unknown_tool", detail: toolName || "(none)" },
+        { status: 400 }
+      );
   }
+}
+
+export async function GET() {
+  return NextResponse.json({ ok: true });
 }
