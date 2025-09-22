@@ -1,11 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";
 
-// ---------- helpers ----------
-function json(data: any, init?: ResponseInit) {
-  return NextResponse.json(data, init);
-}
-
+/* ----------------------- helpers ----------------------- */
 function corsHeaders() {
   return {
     "Access-Control-Allow-Origin": "*",
@@ -18,13 +14,11 @@ function corsHeaders() {
 function withCors(body: any, status = 200) {
   return new NextResponse(JSON.stringify(body), {
     status,
-    headers: {
-      "content-type": "application/json",
-      ...corsHeaders(),
-    },
+    headers: { "content-type": "application/json", ...corsHeaders() },
   });
 }
 
+// tiny logger-safe preview of args
 function preview(obj: any, keys: string[] = []) {
   if (!obj || typeof obj !== "object") return obj;
   const out: Record<string, any> = {};
@@ -36,19 +30,27 @@ function preview(obj: any, keys: string[] = []) {
   return out;
 }
 
+// constant-time style equality for secrets (simple)
+function secretsEqual(a: string, b: string) {
+  if (a.length !== b.length) return false;
+  let r = 0;
+  for (let i = 0; i < a.length; i++) r |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return r === 0;
+}
 function confirmSecret(req: NextRequest) {
   const expected = process.env.WEBHOOK_SHARED_SECRET ?? "";
   const got = req.headers.get("x-shared-secret") ?? "";
-  return expected ? got === expected : true;
+  if (!expected) return true; // no secret configured → allow
+  return got && secretsEqual(expected, got);
 }
 
-// generate demo confirmation id
 function makeConf() {
   const part = Math.random().toString(36).slice(2, 7).toUpperCase();
   return `BK-${part}`;
 }
 
-// ---------- core unwrapping ----------
+/* ----------------- Vapi/TestTool unwrapping -------------- */
+// Accepts Vapi's envelope OR a direct { name/toolName, args/input } body.
 function unwrapToolCall(payload: any): { toolName: string; args: any } {
   const bodyName =
     payload?.toolName || payload?.name || payload?.tool || payload?.tool_name;
@@ -91,7 +93,9 @@ function unwrapToolCall(payload: any): { toolName: string; args: any } {
   };
 }
 
-// ---------- demo handlers ----------
+/* ---------------------- handlers ------------------------- */
+// We always return success for the demo so the LLM has a clear signal.
+// Also include a plain-English `content` so the model parrots the confirmation.
 function handleCreateBooking(args: any) {
   const rec = {
     job_type: args?.job_type ?? "diagnostic",
@@ -116,41 +120,43 @@ function handleCreateBooking(args: any) {
   const window = "8–11 AM";
 
   return {
+    success: true,               // <— explicit success flag
     ok: true,
-    success: true,
     tool: "create_booking",
     status: "booked",
     confirmation,
     window,
     received: rec,
-    result: { confirmation, window },
+    // Text for the LLM to read back
+    content: `Booking confirmed for ${rec.name || "the customer"} ${window}. Confirmation ${confirmation}.`,
   };
 }
 
 function handleHandoffSms(args: any) {
+  const to = args?.phone ?? args?.to ?? "unknown";
   return {
-    ok: true,
     success: true,
+    ok: true,
     tool: "handoff_sms",
     status: "sent",
-    to: args?.phone ?? args?.to ?? "unknown",
-    result: { sent: true },
+    to,
+    content: `Sent follow-up text to ${to}.`,
   };
 }
 
 function handleUpdateCrm(args: any) {
   return {
-    ok: true,
     success: true,
+    ok: true,
     tool: "update_crm_note",
     status: "saved",
     note: args?.summary ?? "(no summary)",
     priority: args?.priority ?? "standard",
-    result: { saved: true },
+    content: `Saved CRM note (${args?.priority ?? "standard"}).`,
   };
 }
 
-// ---------- HTTP handlers ----------
+/* ---------------- HTTP methods (edge) -------------------- */
 export async function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: corsHeaders() });
 }
@@ -161,7 +167,6 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const t0 = Date.now();
-
   const secretOk = confirmSecret(req);
   const headerTool = (req.headers.get("x-tool-name") || "").toString();
 
@@ -183,8 +188,8 @@ export async function POST(req: NextRequest) {
     rawPreview: payload?.message ? ["message"] : Object.keys(payload || {}),
   });
 
-  let out: any;
   try {
+    let out: any;
     switch (toolName) {
       case "create_booking":
         out = handleCreateBooking(args);
@@ -198,21 +203,17 @@ export async function POST(req: NextRequest) {
       default:
         return withCors(
           {
-            ok: false,
             success: false,
+            ok: false,
             error: `Unknown tool "${toolName}". Set x-tool-name header or include {name/toolName} in body.`,
           },
           400
         );
     }
+    const ms = Date.now() - t0;
+    return withCors({ ...out, ms }, 200);
   } catch (e: any) {
     console.error("TOOL_ERROR", { toolName, err: e?.message || e });
-    return withCors(
-      { ok: false, success: false, tool: toolName, error: "handler_threw" },
-      500
-    );
+    return withCors({ success: false, ok: false, tool: toolName }, 500);
   }
-
-  const dt = Date.now() - t0;
-  return withCors({ ...out, ms: dt }, 200);
 }
