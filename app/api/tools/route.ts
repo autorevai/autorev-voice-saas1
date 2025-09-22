@@ -1,180 +1,231 @@
-// app/api/tools/route.ts
-import { NextRequest, NextResponse } from 'next/server';
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { NextRequest, NextResponse } from "next/server";
 
-// ----- Helpers
+// ---------- helpers ----------
 function json(data: any, init?: ResponseInit) {
   return NextResponse.json(data, init);
 }
+
 function corsHeaders() {
   return {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, x-tool-name, x-shared-secret'
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+    "Access-Control-Allow-Headers":
+      "Content-Type, x-shared-secret, x-tool-name, x-vapi-signature",
   };
 }
-function ok(data: any) {
-  return json({ ok: true, ...data }, { status: 200, headers: corsHeaders() });
-}
-function bad(message: string, extra?: any) {
-  return json({ ok: false, error: message, ...extra }, { status: 400, headers: corsHeaders() });
-}
 
-type AnyObj = Record<string, any>;
-type ToolName =
-  | 'create_booking'
-  | 'quote_estimate'
-  | 'handoff_sms'
-  | 'take_payment'
-  | 'update_crm_note';
-
-function env(name: string, fallback = '') {
-  return process.env[name] ?? fallback;
-}
-const DEMO_MODE = (env('DEMO_MODE', 'true').toLowerCase() === 'true');
-const SHARED_SECRET = env('WEBHOOK_SHARED_SECRET', '');
-
-// ----- Parse request (supports both Test Tool + live-call envelope)
-async function parseRequest(req: NextRequest) {
-  const headerTool = (req.headers.get('x-tool-name') ?? '').toString().trim();
-  const headerSecret = (req.headers.get('x-shared-secret') ?? '').toString().trim();
-
-  let body: AnyObj = {};
-  try { body = (await req.json()) ?? {}; } catch {}
-
-  // Body may be: { name/toolName, args/input }  OR  { message: { toolCalls: [...] } }
-  const bodyTool = (body.toolName || body.name || '').toString().trim();
-
-  // Prefer raw args if present
-  let args: AnyObj =
-    (typeof body.args === 'object' && body.args) ||
-    (typeof body.input === 'object' && body.input) ||
-    (body && typeof body === 'object' ? body : {});
-
-  // If this is a live-call envelope, unwrap the first tool's args
-  if (args.message && typeof args.message === 'object') {
-    const m = args.message;
-    const fromList =
-      (Array.isArray(m.toolCalls) && m.toolCalls[0]?.args) ||
-      (Array.isArray(m.toolCallList) && m.toolCallList[0]?.args) ||
-      (Array.isArray(m.toolWithToolCallList) && m.toolWithToolCallList[0]?.toolCall?.args);
-    if (fromList && typeof fromList === 'object') {
-      args = fromList;
-    }
-  }
-
-  const tool: ToolName = (headerTool || bodyTool) as ToolName;
-  return { tool, args, headerSecret, rawBody: body };
-}
-
-// ----- Demo helpers
-function demoConfirmation() {
-  const rnd = Math.random().toString(36).slice(2, 8).toUpperCase();
-  return `BK-${rnd}`;
-}
-function nowIso() { return new Date().toISOString(); }
-function s(x: any, fallback = '') { return (x === undefined || x === null) ? fallback : String(x); }
-function pickWindow(iso?: string) {
-  try {
-    if (iso) {
-      const h = new Date(iso).getHours();
-      if (h < 11) return '8–11 AM';
-      if (h < 14) return '11–2 PM';
-      return '2–5 PM';
-    }
-  } catch {}
-  return '8–11 AM';
-}
-
-// ----- Tool handlers
-async function handleCreateBooking(args: AnyObj) {
-  const payload = {
-    job_type: s(args.job_type || args.type || 'diagnostic'),
-    requested_start: s(args.requested_start),
-    duration_minutes: s(args.duration_minutes || '90'),
-    name: s(args.name),
-    phone: s(args.phone),
-    email: s(args.email),
-    address: s(args.address),
-    city: s(args.city),
-    state: s(args.state),
-    zip: s(args.zip),
-    summary: s(args.summary),
-    equipment: s(args.equipment),
-    priority: s(args.priority || 'standard')
-  };
-
-  const missing: string[] = [];
-  for (const k of ['name', 'phone', 'address', 'zip']) if (!payload[k as keyof typeof payload]) missing.push(k);
-  if (missing.length && !DEMO_MODE) return bad('Missing required fields', { missing, received: payload });
-
-  // Demo: always "book"
-  const confirmation = demoConfirmation();
-  const window = pickWindow(payload.requested_start);
-  return ok({
-    tool: 'create_booking',
-    status: 'booked',
-    confirmation,
-    window,
-    received: payload,
-    agent_hint: `CONFIRMED ${window}. Confirmation ID ${confirmation}.`
+function withCors(body: any, status = 200) {
+  return new NextResponse(JSON.stringify(body), {
+    status,
+    headers: {
+      "content-type": "application/json",
+      ...corsHeaders(),
+    },
   });
 }
 
-async function handleQuoteEstimate(args: AnyObj) {
-  const task = s(args.task || 'diagnostic');
-  const estimate =
-    task.toLowerCase() === 'maintenance'
-      ? 'Maintenance tune-up typically $149–$249 (final price after technician diagnosis).'
-      : task.toLowerCase() === 'install-estimate'
-      ? 'Install estimates are free; in-home evaluation required.'
-      : 'Diagnostic typically $89–$149 and credited toward repairs > $300 (final price after technician diagnosis).';
-  return ok({ tool: 'quote_estimate', estimate, received: { task, ...args } });
+function preview(obj: any, keys: string[] = []) {
+  // keep logs small; only show listed top-level keys if provided
+  if (!obj || typeof obj !== "object") return obj;
+  const out: Record<string, any> = {};
+  const use = keys.length ? keys : Object.keys(obj);
+  for (const k of use) {
+    const v = (obj as any)[k];
+    out[k] = typeof v === "object" ? "[object]" : v;
+  }
+  return out;
 }
 
-async function handleHandoffSms(args: AnyObj) {
-  const phone = s(args.phone);
-  const message = s(args.message || 'Thanks for calling. We’ll follow up shortly.');
-  if (!phone && !DEMO_MODE) return bad('phone is required');
-  return ok({ tool: 'handoff_sms', queued: true, received: { phone, message } });
+function confirmSecret(req: NextRequest) {
+  const expected = process.env.WEBHOOK_SHARED_SECRET ?? "";
+  const got = req.headers.get("x-shared-secret") ?? "";
+  return expected && got && expected === expected && got === expected
+    ? true
+    : expected ? got === expected : true; // if no secret configured, allow
 }
 
-async function handleTakePayment(args: AnyObj) {
-  const amount = s(args.amount_usd || args.amount || '');
-  const payment_url = `https://pay.example.com/demo/${demoConfirmation()}`;
-  return ok({ tool: 'take_payment', payment_url, received: { amount, ...args } });
+// generate demo confirmation id
+function makeConf() {
+  const part = Math.random().toString(36).slice(2, 7).toUpperCase();
+  return `BK-${part}`;
 }
 
-async function handleUpdateCrmNote(args: AnyObj) {
-  const summary = s(args.summary || 'Call summary');
-  const priority = s(args.priority || 'standard');
-  return ok({ tool: 'update_crm_note', saved: true, received: { summary, priority } });
+// ---------- core unwrapping ----------
+// Accepts the Vapi envelope OR a plain {name,input|args} body from the Test Tool
+function unwrapToolCall(payload: any): { toolName: string; args: any } {
+  // Header takes precedence for tool name
+  const bodyName =
+    payload?.toolName || payload?.name || payload?.tool || payload?.tool_name;
+
+  // Direct args (Test Tool / custom clients)
+  const directArgs =
+    payload?.args ??
+    payload?.input ??
+    payload?.payload ??
+    (typeof payload === "object" ? payload : undefined);
+
+  // Vapi envelope patterns
+  const msg = payload?.message ?? payload?.artifact ?? payload?.call?.message;
+
+  // Gather potential toolCall containers
+  const toolCalls =
+    msg?.toolCalls ??
+    msg?.tool_call ??
+    [];
+  const toolCallList = msg?.toolCallList ?? [];
+  const toolWithToolCallList = msg?.toolWithToolCallList ?? [];
+
+  let vapiName = "";
+  let vapiArgs: any = undefined;
+
+  // Try modern toolCalls array first
+  if (Array.isArray(toolCalls) && toolCalls.length > 0) {
+    const first = toolCalls[0];
+    vapiName = first?.name || first?.toolName || "";
+    vapiArgs = first?.args ?? first?.input ?? {};
+  } else if (Array.isArray(toolCallList) && toolCallList.length > 0) {
+    const first = toolCallList[0];
+    vapiName = first?.name || first?.toolName || "";
+    vapiArgs = first?.args ?? first?.input ?? {};
+  } else if (
+    Array.isArray(toolWithToolCallList) &&
+    toolWithToolCallList.length > 0
+  ) {
+    const first = toolWithToolCallList[0]?.toolCall ?? {};
+    vapiName = first?.name || first?.toolName || "";
+    vapiArgs = first?.args ?? first?.input ?? {};
+  }
+
+  return {
+    toolName: bodyName || vapiName || "",
+    args: directArgs || vapiArgs || {},
+  };
 }
 
-// ----- Router
+// ---------- demo handlers ----------
+function handleCreateBooking(args: any) {
+  // Accept fields if present; fall back to safe defaults
+  const rec = {
+    job_type: args?.job_type ?? "diagnostic",
+    requested_start: args?.requested_start ?? "",
+    duration_minutes:
+      typeof args?.duration_minutes === "string"
+        ? args?.duration_minutes
+        : args?.duration_minutes ?? "90",
+    name: args?.name ?? "",
+    phone: args?.phone ?? "",
+    email: args?.email ?? "",
+    address: args?.address ?? "",
+    city: args?.city ?? "",
+    state: args?.state ?? "",
+    zip: args?.zip ?? "",
+    summary: args?.summary ?? "",
+    equipment: args?.equipment ?? "",
+    priority: args?.priority ?? "standard",
+  };
+
+  // Always “book” for demo
+  return {
+    ok: true,
+    tool: "create_booking",
+    status: "booked",
+    confirmation: makeConf(),
+    window: "8–11 AM",
+    received: rec,
+  };
+}
+
+function handleHandoffSms(args: any) {
+  return {
+    ok: true,
+    tool: "handoff_sms",
+    status: "sent",
+    to: args?.phone ?? args?.to ?? "unknown",
+  };
+}
+
+function handleUpdateCrm(args: any) {
+  return {
+    ok: true,
+    tool: "update_crm_note",
+    status: "saved",
+    note: args?.summary ?? "(no summary)",
+    priority: args?.priority ?? "standard",
+  };
+}
+
+// ---------- HTTP handlers ----------
 export async function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: corsHeaders() });
 }
 
+export async function GET() {
+  return withCors({ ok: true, route: "/api/tools", health: "ok" }, 200);
+}
+
 export async function POST(req: NextRequest) {
-  const started = nowIso();
-  const { tool, args, headerSecret, rawBody } = await parseRequest(req);
-  const secretOk = !SHARED_SECRET || headerSecret === SHARED_SECRET;
+  const t0 = Date.now();
 
-  console.log('TOOL_CALL', { timestamp: started, toolName: tool, secretOk, argsPreview: args, rawPreview: Object.keys(rawBody ?? {}).slice(0,3) });
+  // Secret (optional but recommended)
+  const secretOk = confirmSecret(req);
 
+  // Prefer header for tool name
+  const headerTool = (req.headers.get("x-tool-name") || "").toString();
+
+  let payload: any;
   try {
-    switch (tool) {
-      case 'create_booking': return await handleCreateBooking(args);
-      case 'quote_estimate': return await handleQuoteEstimate(args);
-      case 'handoff_sms': return await handleHandoffSms(args);
-      case 'take_payment': return await handleTakePayment(args);
-      case 'update_crm_note': return await handleUpdateCrmNote(args);
-      default: return bad('Unknown tool', { tool, args });
-    }
-  } catch (err: any) {
-    console.error('TOOL_ERROR', { tool, error: err?.message, stack: err?.stack });
-    return DEMO_MODE
-      ? ok({ tool, demo_error: true, message: 'Non-fatal tool error in demo; continuing.' })
-      : bad('Unhandled tool error', { tool, message: err?.message });
+    payload = await req.json();
+  } catch {
+    payload = {};
   }
+
+  // Unwrap
+  const { toolName: bodyTool, args } = unwrapToolCall(payload);
+  const toolName = (headerTool || bodyTool || "").toString();
+
+  // Small log line in Vercel
+  console.info("TOOL_CALL", {
+    timestamp: new Date().toISOString(),
+    toolName,
+    secretOk,
+    argsPreview: preview(args, ["name", "phone", "zip", "job_type"]),
+    rawPreview: payload?.message ? ["message"] : Object.keys(payload || {}),
+  });
+
+  // Route tool
+  let out: any;
+  try {
+    switch (toolName) {
+      case "create_booking":
+        out = handleCreateBooking(args);
+        break;
+      case "handoff_sms":
+        out = handleHandoffSms(args);
+        break;
+      case "update_crm_note":
+        out = handleUpdateCrm(args);
+        break;
+      default:
+        return withCors(
+          {
+            ok: false,
+            error: `Unknown tool "${toolName}". Set x-tool-name header or include {name/toolName} in body.`,
+          },
+          400
+        );
+    }
+  } catch (e: any) {
+    console.error("TOOL_ERROR", {
+      toolName,
+      err: e?.message || e,
+    });
+    return withCors(
+      { ok: false, tool: toolName, error: "handler_threw" },
+      500
+    );
+  }
+
+  const dt = Date.now() - t0;
+  return withCors({ ...out, ms: dt }, 200);
 }
