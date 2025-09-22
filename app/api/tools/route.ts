@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 // --- Helpers
-function json(data: any, init?: number | ResponseInit) {
+function json(data: any, init?: ResponseInit) {
   return NextResponse.json(data, init);
 }
 function corsHeaders() {
@@ -22,7 +22,6 @@ export async function OPTIONS() {
 
 export async function POST(req: NextRequest) {
   try {
-    // CORS
     const headers = corsHeaders();
 
     // Shared secret
@@ -38,22 +37,14 @@ export async function POST(req: NextRequest) {
       return new NextResponse('Missing x-tool-name header', { status: 400, headers });
     }
 
-    // Payload (Vapi sometimes sends {input} or {args}—normalize)
+    // Payload (normalize)
     const body = await req.json().catch(() => ({}));
     const args = body?.args ?? body?.input ?? body;
 
-    // Dispatch
     switch (tool) {
       case 'create_booking': {
-        /**
-         * Expected args (strings are fine):
-         * job_type, requested_start (ISO8601), duration_minutes, name, phone,
-         * email?, address, city?, state?, zip?, summary, equipment?, priority?
-         */
         const id = `job_${Date.now()}`;
         holds.push({ id, payload: args });
-
-        // Echo a success shape the prompt can read back
         return json(
           {
             ok: true,
@@ -67,12 +58,10 @@ export async function POST(req: NextRequest) {
       }
 
       case 'handoff_sms': {
-        // You can integrate Twilio here later; for now acknowledge.
         return json({ ok: true, sent: true }, { status: 200, headers });
       }
 
       case 'quote_estimate': {
-        // Return example price bands
         return json(
           {
             ok: true,
@@ -94,11 +83,9 @@ export async function POST(req: NextRequest) {
       }
 
       case 'update_crm_note': {
-        // args.summary (required), args.priority? ('standard'|'emergency')
         if (!args?.summary) {
           return new NextResponse('summary is required', { status: 400, headers });
         }
-        // Save to DB or Supabase later; stub returns ok
         return json({ ok: true }, { status: 200, headers });
       }
 
@@ -106,6 +93,9 @@ export async function POST(req: NextRequest) {
         return new NextResponse(`Unknown tool: ${tool}`, { status: 400, headers });
     }
   } catch (err: any) {
-    return json({ ok: false, error: err?.message || 'Unhandled error' }, { status: 500, headers: corsHeaders() });
+    return json(
+      { ok: false, error: err?.message || 'Unhandled error' },
+      { status: 500, headers: corsHeaders() }
+    );
   }
 }
