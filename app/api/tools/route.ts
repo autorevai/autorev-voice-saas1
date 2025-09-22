@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";
 
-/* ----------------------- helpers ----------------------- */
+// ---------- helpers ----------
 function corsHeaders() {
   return {
     "Access-Control-Allow-Origin": "*",
@@ -14,11 +14,13 @@ function corsHeaders() {
 function withCors(body: any, status = 200) {
   return new NextResponse(JSON.stringify(body), {
     status,
-    headers: { "content-type": "application/json", ...corsHeaders() },
+    headers: {
+      "content-type": "application/json",
+      ...corsHeaders(),
+    },
   });
 }
 
-// tiny logger-safe preview of args
 function preview(obj: any, keys: string[] = []) {
   if (!obj || typeof obj !== "object") return obj;
   const out: Record<string, any> = {};
@@ -30,18 +32,11 @@ function preview(obj: any, keys: string[] = []) {
   return out;
 }
 
-// constant-time style equality for secrets (simple)
-function secretsEqual(a: string, b: string) {
-  if (a.length !== b.length) return false;
-  let r = 0;
-  for (let i = 0; i < a.length; i++) r |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return r === 0;
-}
 function confirmSecret(req: NextRequest) {
   const expected = process.env.WEBHOOK_SHARED_SECRET ?? "";
   const got = req.headers.get("x-shared-secret") ?? "";
-  if (!expected) return true; // no secret configured → allow
-  return got && secretsEqual(expected, got);
+  // Allow if no secret set; otherwise require exact match
+  return expected ? got === expected : true;
 }
 
 function makeConf() {
@@ -49,8 +44,8 @@ function makeConf() {
   return `BK-${part}`;
 }
 
-/* ----------------- Vapi/TestTool unwrapping -------------- */
-// Accepts Vapi's envelope OR a direct { name/toolName, args/input } body.
+// ---------- core unwrapping ----------
+// Accept Vapi envelope OR a plain {name|toolName|tool, args|input|payload}
 function unwrapToolCall(payload: any): { toolName: string; args: any } {
   const bodyName =
     payload?.toolName || payload?.name || payload?.tool || payload?.tool_name;
@@ -93,9 +88,7 @@ function unwrapToolCall(payload: any): { toolName: string; args: any } {
   };
 }
 
-/* ---------------------- handlers ------------------------- */
-// We always return success for the demo so the LLM has a clear signal.
-// Also include a plain-English `content` so the model parrots the confirmation.
+// ---------- demo handlers ----------
 function handleCreateBooking(args: any) {
   const rec = {
     job_type: args?.job_type ?? "diagnostic",
@@ -117,46 +110,45 @@ function handleCreateBooking(args: any) {
   };
 
   const confirmation = makeConf();
-  const window = "8–11 AM";
-
   return {
-    success: true,               // <— explicit success flag
     ok: true,
+    success: true,                 // <-- extra flag (helps LLM)
     tool: "create_booking",
     status: "booked",
     confirmation,
-    window,
+    window: "8–11 AM",
     received: rec,
-    // Text for the LLM to read back
-    content: `Booking confirmed for ${rec.name || "the customer"} ${window}. Confirmation ${confirmation}.`,
+    message: `Booked. Confirmation ${confirmation}. Window 8 to 11 AM.`, // <-- human-readable
   };
 }
 
 function handleHandoffSms(args: any) {
   const to = args?.phone ?? args?.to ?? "unknown";
   return {
-    success: true,
     ok: true,
+    success: true,
     tool: "handoff_sms",
     status: "sent",
     to,
-    content: `Sent follow-up text to ${to}.`,
+    message: `Text sent to ${to}.`,
   };
 }
 
 function handleUpdateCrm(args: any) {
+  const note = args?.summary ?? "(no summary)";
+  const priority = args?.priority ?? "standard";
   return {
-    success: true,
     ok: true,
+    success: true,
     tool: "update_crm_note",
     status: "saved",
-    note: args?.summary ?? "(no summary)",
-    priority: args?.priority ?? "standard",
-    content: `Saved CRM note (${args?.priority ?? "standard"}).`,
+    note,
+    priority,
+    message: `Saved note (${priority}).`,
   };
 }
 
-/* ---------------- HTTP methods (edge) -------------------- */
+// ---------- HTTP handlers ----------
 export async function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: corsHeaders() });
 }
@@ -170,50 +162,65 @@ export async function POST(req: NextRequest) {
   const secretOk = confirmSecret(req);
   const headerTool = (req.headers.get("x-tool-name") || "").toString();
 
-  let payload: any;
+  let payload: any = {};
   try {
     payload = await req.json();
   } catch {
-    payload = {};
+    /* noop */
   }
 
   const { toolName: bodyTool, args } = unwrapToolCall(payload);
   const toolName = (headerTool || bodyTool || "").toString();
 
-  console.info("TOOL_CALL", {
-    timestamp: new Date().toISOString(),
+  // Input log (short)
+  console.info("TOOL_CALL_IN", {
+    ts: new Date().toISOString(),
     toolName,
     secretOk,
     argsPreview: preview(args, ["name", "phone", "zip", "job_type"]),
-    rawPreview: payload?.message ? ["message"] : Object.keys(payload || {}),
+    hasMessageEnvelope: Boolean(payload?.message),
   });
 
+  // Route to handler
+  let result: any;
   try {
-    let out: any;
     switch (toolName) {
       case "create_booking":
-        out = handleCreateBooking(args);
+        result = handleCreateBooking(args);
         break;
       case "handoff_sms":
-        out = handleHandoffSms(args);
+        result = handleHandoffSms(args);
         break;
       case "update_crm_note":
-        out = handleUpdateCrm(args);
+        result = handleUpdateCrm(args);
         break;
       default:
         return withCors(
           {
-            success: false,
             ok: false,
+            success: false,
             error: `Unknown tool "${toolName}". Set x-tool-name header or include {name/toolName} in body.`,
           },
           400
         );
     }
-    const ms = Date.now() - t0;
-    return withCors({ ...out, ms }, 200);
   } catch (e: any) {
-    console.error("TOOL_ERROR", { toolName, err: e?.message || e });
-    return withCors({ success: false, ok: false, tool: toolName }, 500);
+    console.error("TOOL_CALL_ERR", { toolName, err: e?.message || e });
+    return withCors(
+      { ok: false, success: false, tool: toolName, error: "handler_threw" },
+      500
+    );
   }
+
+  const ms = Date.now() - t0;
+  const responseBody = { ...result, ms };
+
+  // Output log (exact body we return)
+  console.info("TOOL_CALL_OUT", {
+    ts: new Date().toISOString(),
+    toolName,
+    response: responseBody,
+  });
+
+  return withCors(responseBody, 200);
 }
