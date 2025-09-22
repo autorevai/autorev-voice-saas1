@@ -26,7 +26,6 @@ function withCors(body: any, status = 200) {
 }
 
 function preview(obj: any, keys: string[] = []) {
-  // keep logs small; only show listed top-level keys if provided
   if (!obj || typeof obj !== "object") return obj;
   const out: Record<string, any> = {};
   const use = keys.length ? keys : Object.keys(obj);
@@ -40,9 +39,7 @@ function preview(obj: any, keys: string[] = []) {
 function confirmSecret(req: NextRequest) {
   const expected = process.env.WEBHOOK_SHARED_SECRET ?? "";
   const got = req.headers.get("x-shared-secret") ?? "";
-  return expected && got && expected === expected && got === expected
-    ? true
-    : expected ? got === expected : true; // if no secret configured, allow
+  return expected ? got === expected : true;
 }
 
 // generate demo confirmation id
@@ -52,34 +49,25 @@ function makeConf() {
 }
 
 // ---------- core unwrapping ----------
-// Accepts the Vapi envelope OR a plain {name,input|args} body from the Test Tool
 function unwrapToolCall(payload: any): { toolName: string; args: any } {
-  // Header takes precedence for tool name
   const bodyName =
     payload?.toolName || payload?.name || payload?.tool || payload?.tool_name;
 
-  // Direct args (Test Tool / custom clients)
   const directArgs =
     payload?.args ??
     payload?.input ??
     payload?.payload ??
     (typeof payload === "object" ? payload : undefined);
 
-  // Vapi envelope patterns
   const msg = payload?.message ?? payload?.artifact ?? payload?.call?.message;
 
-  // Gather potential toolCall containers
-  const toolCalls =
-    msg?.toolCalls ??
-    msg?.tool_call ??
-    [];
+  const toolCalls = msg?.toolCalls ?? msg?.tool_call ?? [];
   const toolCallList = msg?.toolCallList ?? [];
   const toolWithToolCallList = msg?.toolWithToolCallList ?? [];
 
   let vapiName = "";
   let vapiArgs: any = undefined;
 
-  // Try modern toolCalls array first
   if (Array.isArray(toolCalls) && toolCalls.length > 0) {
     const first = toolCalls[0];
     vapiName = first?.name || first?.toolName || "";
@@ -105,7 +93,6 @@ function unwrapToolCall(payload: any): { toolName: string; args: any } {
 
 // ---------- demo handlers ----------
 function handleCreateBooking(args: any) {
-  // Accept fields if present; fall back to safe defaults
   const rec = {
     job_type: args?.job_type ?? "diagnostic",
     requested_start: args?.requested_start ?? "",
@@ -125,33 +112,41 @@ function handleCreateBooking(args: any) {
     priority: args?.priority ?? "standard",
   };
 
-  // Always “book” for demo
+  const confirmation = makeConf();
+  const window = "8–11 AM";
+
   return {
     ok: true,
+    success: true,
     tool: "create_booking",
     status: "booked",
-    confirmation: makeConf(),
-    window: "8–11 AM",
+    confirmation,
+    window,
     received: rec,
+    result: { confirmation, window },
   };
 }
 
 function handleHandoffSms(args: any) {
   return {
     ok: true,
+    success: true,
     tool: "handoff_sms",
     status: "sent",
     to: args?.phone ?? args?.to ?? "unknown",
+    result: { sent: true },
   };
 }
 
 function handleUpdateCrm(args: any) {
   return {
     ok: true,
+    success: true,
     tool: "update_crm_note",
     status: "saved",
     note: args?.summary ?? "(no summary)",
     priority: args?.priority ?? "standard",
+    result: { saved: true },
   };
 }
 
@@ -167,10 +162,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const t0 = Date.now();
 
-  // Secret (optional but recommended)
   const secretOk = confirmSecret(req);
-
-  // Prefer header for tool name
   const headerTool = (req.headers.get("x-tool-name") || "").toString();
 
   let payload: any;
@@ -180,11 +172,9 @@ export async function POST(req: NextRequest) {
     payload = {};
   }
 
-  // Unwrap
   const { toolName: bodyTool, args } = unwrapToolCall(payload);
   const toolName = (headerTool || bodyTool || "").toString();
 
-  // Small log line in Vercel
   console.info("TOOL_CALL", {
     timestamp: new Date().toISOString(),
     toolName,
@@ -193,7 +183,6 @@ export async function POST(req: NextRequest) {
     rawPreview: payload?.message ? ["message"] : Object.keys(payload || {}),
   });
 
-  // Route tool
   let out: any;
   try {
     switch (toolName) {
@@ -210,18 +199,16 @@ export async function POST(req: NextRequest) {
         return withCors(
           {
             ok: false,
+            success: false,
             error: `Unknown tool "${toolName}". Set x-tool-name header or include {name/toolName} in body.`,
           },
           400
         );
     }
   } catch (e: any) {
-    console.error("TOOL_ERROR", {
-      toolName,
-      err: e?.message || e,
-    });
+    console.error("TOOL_ERROR", { toolName, err: e?.message || e });
     return withCors(
-      { ok: false, tool: toolName, error: "handler_threw" },
+      { ok: false, success: false, tool: toolName, error: "handler_threw" },
       500
     );
   }
