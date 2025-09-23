@@ -90,13 +90,18 @@ function unwrapToolCall(payload: any): { toolName: string; args: any } {
 
 // ---------- demo handlers ----------
 function handleCreateBooking(args: any) {
+  // DEBUG: Log exactly what VAPI is sending
+  console.info("CREATE_BOOKING_DEBUG", {
+    rawArgs: args,
+    argsKeys: Object.keys(args || {}),
+    argsEntries: Object.entries(args || {}),
+    hasData: Boolean(args?.name || args?.phone || args?.address)
+  });
+
   const rec = {
     job_type: args?.job_type ?? "diagnostic",
     requested_start: args?.requested_start ?? "",
-    duration_minutes:
-      typeof args?.duration_minutes === "string"
-        ? args?.duration_minutes
-        : args?.duration_minutes ?? "90",
+    duration_minutes: args?.duration_minutes ?? "90",
     name: args?.name ?? "",
     phone: args?.phone ?? "",
     email: args?.email ?? "",
@@ -109,15 +114,25 @@ function handleCreateBooking(args: any) {
     priority: args?.priority ?? "standard",
   };
 
+  // FAIL if no actual customer data received
+  if (!args?.name && !args?.phone && !args?.address) {
+    console.error("CREATE_BOOKING_NO_DATA", { received: rec });
+    return {
+      success: false,
+      tool: "create_booking",
+      status: "failed", 
+      error: "No customer data received from VAPI",
+      received: rec
+    };
+  }
+
   const confirmation = makeConf();
-  
-  // SIMPLIFIED SUCCESS RESPONSE - Clear success indicators
   return {
-    success: true,              // PRIMARY success indicator
-    tool: "create_booking", 
-    status: "booked",           // SECONDARY success indicator
-    confirmation,               // MUST be spoken if present
-    window: "8 to 11 AM",       // Match knowledge base format  
+    success: true,
+    tool: "create_booking",
+    status: "booked",
+    confirmation,
+    window: "8 to 11 AM",
     received: rec,
   };
 }
