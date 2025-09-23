@@ -110,15 +110,15 @@ function handleCreateBooking(args: any) {
   };
 
   const confirmation = makeConf();
+  
+  // SIMPLIFIED SUCCESS RESPONSE - Clear success indicators
   return {
-    ok: true,
-    success: true,                 // <-- explicit success flag
-    tool: "create_booking",
-    status: "booked",
-    confirmation,
-    window: "8–11 AM",
+    success: true,              // PRIMARY success indicator
+    tool: "create_booking", 
+    status: "booked",           // SECONDARY success indicator
+    confirmation,               // MUST be spoken if present
+    window: "8 to 11 AM",       // Match knowledge base format  
     received: rec,
-    message: `Booked. Confirmation ${confirmation}. Window 8 to 11 AM.`,
   };
 }
 
