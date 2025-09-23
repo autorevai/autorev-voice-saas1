@@ -44,8 +44,8 @@ function makeConf() {
   return `BK-${part}`;
 }
 
-// ---------- core unwrapping ----------
-// Enhanced unwrapping to handle VAPI's nested arrays
+// ---------- enhanced unwrapping ----------
+// Handles VAPI's complex nested envelope structure
 function unwrapToolCall(payload: any): { toolName: string; args: any } {
   const bodyName =
     payload?.toolName || payload?.name || payload?.tool || payload?.tool_name;
@@ -65,7 +65,7 @@ function unwrapToolCall(payload: any): { toolName: string; args: any } {
   let vapiName = "";
   let vapiArgs: any = undefined;
 
-  // Enhanced extraction from VAPI arrays
+  // Enhanced extraction from VAPI arrays - try all possible locations
   if (Array.isArray(toolCalls) && toolCalls.length > 0) {
     const first = toolCalls[0];
     vapiName = first?.name || first?.toolName || first?.function?.name || "";
@@ -116,15 +116,26 @@ function unwrapToolCall(payload: any): { toolName: string; args: any } {
     });
   }
 
+  // CRITICAL FIX: Use extracted args if they exist and have data, otherwise fall back to direct args
+  let finalArgs = {};
+  
+  if (vapiArgs && Object.keys(vapiArgs).length > 0) {
+    finalArgs = vapiArgs;
+    console.info("USING_EXTRACTED_ARGS", { count: Object.keys(vapiArgs).length });
+  } else if (directArgs && typeof directArgs === 'object' && !directArgs.message) {
+    finalArgs = directArgs;
+    console.info("USING_DIRECT_ARGS", { count: Object.keys(directArgs).length });
+  }
+
   return {
     toolName: bodyName || vapiName || "",
-    args: directArgs || vapiArgs || {},
+    args: finalArgs,
   };
 }
 
 // ---------- demo handlers ----------
 function handleCreateBooking(args: any) {
-  // DEBUG: Log exactly what VAPI is sending
+  // DEBUG: Log exactly what we received
   console.info("CREATE_BOOKING_DEBUG", {
     rawArgs: args,
     argsKeys: Object.keys(args || {}),
@@ -148,33 +159,38 @@ function handleCreateBooking(args: any) {
     priority: args?.priority ?? "standard",
   };
 
-  // FAIL if no actual customer data received
-  if (!args?.name && !args?.phone && !args?.address) {
-    console.error("CREATE_BOOKING_NO_DATA", { received: rec });
+  // Success case: we have customer data
+  if (args?.name || args?.phone || args?.address) {
+    const confirmation = makeConf();
+    console.info("CREATE_BOOKING_SUCCESS", { 
+      customerData: { name: rec.name, phone: rec.phone, address: rec.address },
+      confirmation 
+    });
+    
     return {
-      success: false,
+      success: true,
       tool: "create_booking",
-      status: "failed", 
-      error: "No customer data received from VAPI",
-      received: rec
+      status: "booked",
+      confirmation,
+      window: "8 to 11 AM",
+      received: rec,
     };
   }
 
-  const confirmation = makeConf();
+  // Failure case: no customer data
+  console.error("CREATE_BOOKING_NO_DATA", { received: rec });
   return {
-    success: true,
+    success: false,
     tool: "create_booking",
-    status: "booked",
-    confirmation,
-    window: "8 to 11 AM",
-    received: rec,
+    status: "failed", 
+    error: "No customer data received from VAPI",
+    received: rec
   };
 }
 
 function handleHandoffSms(args: any) {
   const to = args?.phone ?? args?.to ?? "unknown";
   return {
-    ok: true,
     success: true,
     tool: "handoff_sms",
     status: "sent",
@@ -187,7 +203,6 @@ function handleUpdateCrm(args: any) {
   const note = args?.summary ?? "(no summary)";
   const priority = args?.priority ?? "standard";
   return {
-    ok: true,
     success: true,
     tool: "update_crm_note",
     status: "saved",
@@ -246,7 +261,6 @@ export async function POST(req: NextRequest) {
       default:
         return withCors(
           {
-            ok: false,
             success: false,
             error: `Unknown tool "${toolName}". Set x-tool-name header or include {name/toolName} in body.`,
           },
@@ -256,7 +270,7 @@ export async function POST(req: NextRequest) {
   } catch (e: any) {
     console.error("TOOL_CALL_ERR", { toolName, err: e?.message || e });
     return withCors(
-      { ok: false, success: false, tool: toolName, error: "handler_threw" },
+      { success: false, tool: toolName, error: "handler_threw" },
       500
     );
   }
