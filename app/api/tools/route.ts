@@ -112,13 +112,13 @@ function handleCreateBooking(args: any) {
   const confirmation = makeConf();
   return {
     ok: true,
-    success: true,                 // <-- extra flag (helps LLM)
+    success: true,                 // <-- explicit success flag
     tool: "create_booking",
     status: "booked",
     confirmation,
     window: "8–11 AM",
     received: rec,
-    message: `Booked. Confirmation ${confirmation}. Window 8 to 11 AM.`, // <-- human-readable
+    message: `Booked. Confirmation ${confirmation}. Window 8 to 11 AM.`,
   };
 }
 
