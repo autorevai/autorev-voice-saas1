@@ -45,7 +45,7 @@ function makeConf() {
 }
 
 // ---------- core unwrapping ----------
-// Accept Vapi envelope OR a plain {name|toolName|tool, args|input|payload}
+// Enhanced unwrapping to handle VAPI's nested arrays
 function unwrapToolCall(payload: any): { toolName: string; args: any } {
   const bodyName =
     payload?.toolName || payload?.name || payload?.tool || payload?.tool_name;
@@ -65,21 +65,55 @@ function unwrapToolCall(payload: any): { toolName: string; args: any } {
   let vapiName = "";
   let vapiArgs: any = undefined;
 
+  // Enhanced extraction from VAPI arrays
   if (Array.isArray(toolCalls) && toolCalls.length > 0) {
     const first = toolCalls[0];
-    vapiName = first?.name || first?.toolName || "";
-    vapiArgs = first?.args ?? first?.input ?? {};
+    vapiName = first?.name || first?.toolName || first?.function?.name || "";
+    vapiArgs = first?.args ?? first?.input ?? first?.arguments ?? first?.function?.arguments ?? {};
+    
+    // Handle stringified JSON arguments
+    if (typeof vapiArgs === "string") {
+      try {
+        vapiArgs = JSON.parse(vapiArgs);
+      } catch {
+        // Keep as string if not valid JSON
+      }
+    }
   } else if (Array.isArray(toolCallList) && toolCallList.length > 0) {
     const first = toolCallList[0];
-    vapiName = first?.name || first?.toolName || "";
-    vapiArgs = first?.args ?? first?.input ?? {};
-  } else if (
-    Array.isArray(toolWithToolCallList) &&
-    toolWithToolCallList.length > 0
-  ) {
-    const first = toolWithToolCallList[0]?.toolCall ?? {};
-    vapiName = first?.name || first?.toolName || "";
-    vapiArgs = first?.args ?? first?.input ?? {};
+    vapiName = first?.name || first?.toolName || first?.function?.name || "";
+    vapiArgs = first?.args ?? first?.input ?? first?.arguments ?? first?.function?.arguments ?? {};
+    
+    if (typeof vapiArgs === "string") {
+      try {
+        vapiArgs = JSON.parse(vapiArgs);
+      } catch {
+        // Keep as string if not valid JSON
+      }
+    }
+  } else if (Array.isArray(toolWithToolCallList) && toolWithToolCallList.length > 0) {
+    const toolCallObj = toolWithToolCallList[0]?.toolCall ?? {};
+    vapiName = toolCallObj?.name || toolCallObj?.toolName || toolCallObj?.function?.name || "";
+    vapiArgs = toolCallObj?.args ?? toolCallObj?.input ?? toolCallObj?.arguments ?? toolCallObj?.function?.arguments ?? {};
+    
+    if (typeof vapiArgs === "string") {
+      try {
+        vapiArgs = JSON.parse(vapiArgs);
+      } catch {
+        // Keep as string if not valid JSON
+      }
+    }
+  }
+
+  // Debug log to see what we extracted
+  if (vapiArgs && Object.keys(vapiArgs).length > 0) {
+    console.info("EXTRACTED_ARGS", {
+      toolName: bodyName || vapiName || "",
+      extractedArgs: vapiArgs,
+      source: toolCalls.length > 0 ? "toolCalls" : 
+              toolCallList.length > 0 ? "toolCallList" : 
+              toolWithToolCallList.length > 0 ? "toolWithToolCallList" : "direct"
+    });
   }
 
   return {
