@@ -135,12 +135,10 @@ function unwrapToolCall(payload: any): { toolName: string; args: any } {
 
 // ---------- demo handlers ----------
 function handleCreateBooking(args: any) {
-  // DEBUG: Log exactly what we received
   console.info("CREATE_BOOKING_DEBUG", {
-    rawArgs: args,
-    argsKeys: Object.keys(args || {}),
-    argsEntries: Object.entries(args || {}),
-    hasData: Boolean(args?.name || args?.phone || args?.address)
+    hasData: Boolean(args?.name || args?.phone || args?.address),
+    customerName: args?.name,
+    customerPhone: args?.phone
   });
 
   const rec = {
@@ -161,29 +159,29 @@ function handleCreateBooking(args: any) {
 
   // Success case: we have customer data
   if (args?.name || args?.phone || args?.address) {
-    const confirmation = makeConf();
-    console.info("CREATE_BOOKING_SUCCESS", { 
-      customerData: { name: rec.name, phone: rec.phone, address: rec.address },
-      confirmation 
+    console.info("BOOKING_SUCCESS", { 
+      customer: rec.name,
+      phone: rec.phone,
+      address: rec.address
     });
     
     return {
       success: true,
       tool: "create_booking",
       status: "booked",
-      confirmation,
       window: "8 to 11 AM",
+      message: "Successfully booked for 8 to 11 AM tomorrow",
       received: rec,
     };
   }
 
   // Failure case: no customer data
-  console.error("CREATE_BOOKING_NO_DATA", { received: rec });
+  console.error("BOOKING_FAILED_NO_DATA", { received: rec });
   return {
     success: false,
     tool: "create_booking",
     status: "failed", 
-    error: "No customer data received from VAPI",
+    error: "No customer data received",
     received: rec
   };
 }
