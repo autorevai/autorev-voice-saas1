@@ -39,11 +39,6 @@ function confirmSecret(req: NextRequest) {
   return expected ? got === expected : true;
 }
 
-function makeConf() {
-  const part = Math.random().toString(36).slice(2, 7).toUpperCase();
-  return `BK-${part}`;
-}
-
 // ---------- enhanced unwrapping ----------
 // Handles VAPI's complex nested envelope structure
 function unwrapToolCall(payload: any): { toolName: string; args: any } {
@@ -138,7 +133,9 @@ function handleCreateBooking(args: any) {
   console.info("CREATE_BOOKING_DEBUG", {
     hasData: Boolean(args?.name || args?.phone || args?.address),
     customerName: args?.name,
-    customerPhone: args?.phone
+    customerPhone: args?.phone,
+    rawArgs: args,
+    argsKeys: Object.keys(args || {})
   });
 
   const rec = {
@@ -186,27 +183,147 @@ function handleCreateBooking(args: any) {
   };
 }
 
+function handleQuoteEstimate(args: any) {
+  console.info("QUOTE_ESTIMATE_DEBUG", {
+    rawArgs: args,
+    argsKeys: Object.keys(args || {}),
+    hasTask: Boolean(args?.task),
+    hasEquipment: Boolean(args?.equipment),
+    hasNotes: Boolean(args?.notes),
+    taskValue: args?.task
+  });
+
+  const task = args?.task || "diagnostic";
+  const equipment = args?.equipment || "unknown";
+  const notes = args?.notes || "";
+  
+  // Provide HVAC pricing ranges based on your VAPI task enum
+  let priceRange = "$89-$129";
+  let details = "diagnostic service";
+
+  // Match your exact VAPI task enum values
+  switch (task) {
+    case "diagnostic":
+      priceRange = "$89-$129";
+      details = "diagnostic service (credited toward repair)";
+      break;
+    case "maintenance":
+      priceRange = "$150-$250";
+      details = "maintenance tune-up";
+      break;
+    case "capacitor":
+      priceRange = "$150-$350";
+      details = "capacitor replacement";
+      break;
+    case "contactor":
+      priceRange = "$170-$380";
+      details = "contactor replacement";
+      break;
+    case "blower-motor":
+      priceRange = "$450-$900";
+      details = "blower motor replacement";
+      break;
+    case "refrigerant-per-lb":
+      priceRange = "$80-$150 per lb";
+      details = "refrigerant service";
+      break;
+    case "inducer-motor":
+      priceRange = "$650-$1200";
+      details = "inducer motor replacement";
+      break;
+    case "install-estimate":
+      priceRange = "$3000-$8000+";
+      details = "system replacement (varies by size/efficiency)";
+      break;
+    default:
+      priceRange = "$150-$800";
+      details = "diagnostic and repair";
+  }
+
+  console.info("QUOTE_ESTIMATE_SUCCESS", {
+    task: task,
+    priceRange: priceRange,
+    details: details
+  });
+
+  return {
+    success: true,
+    tool: "quote_estimate",
+    status: "provided",
+    task: task,
+    price_range: priceRange,
+    service_type: details,
+    equipment: equipment,
+    notes: notes,
+    diagnostic_info: task === "diagnostic" ? "Fee credited toward approved repair" : null,
+    estimate_disclaimer: "Range estimate until technician diagnoses the system"
+  };
+}
+
 function handleHandoffSms(args: any) {
-  const to = args?.phone ?? args?.to ?? "unknown";
+  console.info("HANDOFF_SMS_DEBUG", {
+    rawArgs: args,
+    argsKeys: Object.keys(args || {}),
+    hasPhone: Boolean(args?.phone),
+    hasMessage: Boolean(args?.message),
+    phoneValue: args?.phone,
+    messageValue: args?.message
+  });
+
+  const phone = args?.phone || "unknown";
+  const message = args?.message || "Follow-up assistance requested";
+  
+  // Validate E.164 phone format (basic check)
+  const isValidPhone = phone.startsWith('+') && phone.length >= 10;
+  if (!isValidPhone && phone !== "unknown") {
+    console.warn("HANDOFF_SMS_INVALID_PHONE", { phone, isValidPhone });
+  }
+
+  console.info("HANDOFF_SMS_SUCCESS", {
+    phone: phone,
+    message: message,
+    isValidPhone: isValidPhone
+  });
+
   return {
     success: true,
     tool: "handoff_sms",
     status: "sent",
-    to,
-    message: `Text sent to ${to}.`,
+    phone: phone,
+    message: message,
+    sms_type: "handoff_request",
+    note: `Handoff SMS queued for ${phone}: ${message}`
   };
 }
 
 function handleUpdateCrm(args: any) {
-  const note = args?.summary ?? "(no summary)";
+  console.info("UPDATE_CRM_DEBUG", {
+    rawArgs: args,
+    argsKeys: Object.keys(args || {}),
+    hasSummary: Boolean(args?.summary),
+    hasPriority: Boolean(args?.priority)
+  });
+
+  const note = args?.summary ?? args?.note ?? args?.call_summary ?? "(no summary)";
   const priority = args?.priority ?? "standard";
+  const customerName = args?.name ?? args?.customer_name ?? "";
+  const phone = args?.phone ?? "";
+  
+  console.info("UPDATE_CRM_SUCCESS", {
+    customer: customerName,
+    priority: priority,
+    noteLength: note.length
+  });
+
   return {
     success: true,
     tool: "update_crm_note",
     status: "saved",
-    note,
-    priority,
-    message: `Saved note (${priority}).`,
+    customer: customerName,
+    phone: phone,
+    note: note,
+    priority: priority,
+    message: `CRM note saved for ${customerName || phone} (${priority})`
   };
 }
 
@@ -234,12 +351,12 @@ export async function POST(req: NextRequest) {
   const { toolName: bodyTool, args } = unwrapToolCall(payload);
   const toolName = (headerTool || bodyTool || "").toString();
 
-  // Input log (short)
+  // Input log (expanded to include new tool fields)
   console.info("TOOL_CALL_IN", {
     ts: new Date().toISOString(),
     toolName,
     secretOk,
-    argsPreview: preview(args, ["name", "phone", "zip", "job_type"]),
+    argsPreview: preview(args, ["name", "phone", "zip", "task", "message", "summary"]),
     hasMessageEnvelope: Boolean(payload?.message),
   });
 
@@ -249,6 +366,9 @@ export async function POST(req: NextRequest) {
     switch (toolName) {
       case "create_booking":
         result = handleCreateBooking(args);
+        break;
+      case "quote_estimate":
+        result = handleQuoteEstimate(args);
         break;
       case "handoff_sms":
         result = handleHandoffSms(args);
@@ -260,7 +380,7 @@ export async function POST(req: NextRequest) {
         return withCors(
           {
             success: false,
-            error: `Unknown tool "${toolName}". Set x-tool-name header or include {name/toolName} in body.`,
+            error: `Unknown tool "${toolName}". Available tools: create_booking, quote_estimate, handoff_sms, update_crm_note`,
           },
           400
         );
