@@ -1,6 +1,7 @@
 import { createClient } from '../../../../../lib/db'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
+import TranscriptViewer from '../components/TranscriptViewer'
 
 interface Call {
   id: string
@@ -227,6 +228,16 @@ export default async function CallDetailsPage({ params }: { params: Promise<{ id
                 ))}
               </div>
             )}
+          </div>
+        </div>
+
+        {/* Call Transcript */}
+        <div className="bg-white shadow rounded-lg">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h2 className="text-lg font-medium text-gray-900">Call Transcript</h2>
+          </div>
+          <div className="p-6">
+            <TranscriptViewer call={call} />
           </div>
         </div>
 
