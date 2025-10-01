@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "../../../lib/db";
 
 // ---------- helpers ----------
 function corsHeaders() {
@@ -37,6 +38,136 @@ function confirmSecret(req: NextRequest) {
   const got = req.headers.get("x-shared-secret") ?? "";
   // Allow if no secret set; otherwise require exact match
   return expected ? got === expected : true;
+}
+
+// ---------- database persistence helpers ----------
+function extractVapiCallId(req: NextRequest, payload: any): string | null {
+  // Check headers first
+  const headerCallId = req.headers.get('x-vapi-call-id');
+  if (headerCallId) return headerCallId;
+  
+  // Check payload locations
+  const payloadCallId = payload?.call?.id || payload?.message?.call?.id;
+  if (payloadCallId) return payloadCallId;
+  
+  return null;
+}
+
+async function persistToolResult(
+  vapiCallId: string | null,
+  toolName: string,
+  requestJson: any,
+  responseJson: any,
+  success: boolean
+) {
+  try {
+    const db = createClient();
+    const tenantId = process.env.DEMO_TENANT_ID;
+    
+    if (!tenantId) {
+      console.warn("DB_PERSIST_WARN", { message: "No DEMO_TENANT_ID set, skipping persistence" });
+      return;
+    }
+
+    if (!vapiCallId) {
+      console.warn("DB_PERSIST_WARN", { message: "No VAPI call ID found, skipping persistence" });
+      return;
+    }
+
+    // Upsert call record
+    const { data: callData, error: callError } = await db
+      .from('calls')
+      .upsert({
+        vapi_call_id: vapiCallId,
+        tenant_id: tenantId,
+        started_at: new Date().toISOString(),
+        raw_json: requestJson
+      }, {
+        onConflict: 'vapi_call_id'
+      })
+      .select()
+      .single();
+
+    if (callError) {
+      console.error("DB_CALL_ERROR", { error: callError, vapiCallId });
+      return;
+    }
+
+    // Insert tool result
+    const { error: toolError } = await db
+      .from('tool_results')
+      .insert({
+        call_id: callData.id,
+        tool_name: toolName,
+        request_json: requestJson,
+        response_json: responseJson,
+        success: success
+      });
+
+    if (toolError) {
+      console.error("DB_TOOL_RESULT_ERROR", { error: toolError, callId: callData.id });
+    } else {
+      console.info("DB_PERSIST_SUCCESS", { 
+        callId: callData.id, 
+        toolName, 
+        success 
+      });
+    }
+
+    return callData.id;
+  } catch (error) {
+    console.error("DB_PERSIST_ERROR", { error, toolName, vapiCallId });
+  }
+}
+
+async function persistBooking(callId: string, bookingData: any) {
+  try {
+    const db = createClient();
+    const tenantId = process.env.DEMO_TENANT_ID;
+    
+    if (!tenantId) {
+      console.warn("DB_BOOKING_WARN", { message: "No DEMO_TENANT_ID set, skipping booking persistence" });
+      return;
+    }
+
+    // Generate confirmation code (simple approach for now)
+    const confirmation = Math.random().toString(36).substring(2, 10).toUpperCase();
+    
+    // Calculate start time (tomorrow 8 AM for demo)
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(8, 0, 0, 0);
+
+    const { error } = await db
+      .from('bookings')
+      .insert({
+        tenant_id: tenantId,
+        call_id: callId,
+        confirmation: confirmation,
+        window_text: "8 to 11 AM",
+        start_ts: tomorrow.toISOString(),
+        duration_min: parseInt(bookingData.duration_minutes) || 90,
+        name: bookingData.name || "",
+        phone: bookingData.phone || "",
+        email: bookingData.email || null,
+        address: bookingData.address || "",
+        city: bookingData.city || null,
+        state: bookingData.state || null,
+        zip: bookingData.zip || null,
+        summary: bookingData.summary || null,
+        equipment: bookingData.equipment || null,
+        priority: bookingData.priority || "standard",
+        source: "voice_call"
+      });
+
+    if (error) {
+      console.error("DB_BOOKING_ERROR", { error, callId });
+    } else {
+      console.info("DB_BOOKING_SUCCESS", { callId, confirmation });
+    }
+  } catch (error) {
+    console.error("DB_BOOKING_PERSIST_ERROR", { error, callId });
+  }
 }
 
 // ---------- enhanced unwrapping ----------
@@ -402,6 +533,26 @@ export async function POST(req: NextRequest) {
     toolName,
     response: responseBody,
   });
+
+  // Database persistence (non-blocking side effect)
+  try {
+    const vapiCallId = extractVapiCallId(req, payload);
+    const callId = await persistToolResult(
+      vapiCallId,
+      toolName,
+      args,
+      responseBody,
+      result.success || false
+    );
+
+    // If create_booking was successful, also persist the booking
+    if (toolName === "create_booking" && result.success && callId) {
+      await persistBooking(callId, result.received || {});
+    }
+  } catch (error) {
+    // Log but don't fail the request
+    console.error("DB_PERSIST_SIDE_EFFECT_ERROR", { error, toolName });
+  }
 
   return withCors(responseBody, 200);
 }
