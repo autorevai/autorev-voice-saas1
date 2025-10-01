@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "../../../../lib/db"
-import crypto from 'crypto'
 
 // VAPI webhook event types
 interface VapiWebhookEvent {
@@ -31,23 +30,6 @@ interface VapiWebhookEvent {
   }
 }
 
-// Verify VAPI webhook signature
-function verifyWebhookSignature(payload: string, signature: string, secret: string): boolean {
-  try {
-    const expectedSignature = crypto
-      .createHmac('sha256', secret)
-      .update(payload, 'utf8')
-      .digest('hex')
-    
-    return crypto.timingSafeEqual(
-      Buffer.from(signature, 'hex'),
-      Buffer.from(expectedSignature, 'hex')
-    )
-  } catch (error) {
-    console.error('Error verifying webhook signature:', error)
-    return false
-  }
-}
 
 // CORS headers
 function corsHeaders() {
@@ -271,31 +253,23 @@ export async function OPTIONS() {
 
 export async function POST(req: NextRequest) {
   try {
-    // Get the raw body for signature verification
-    const body = await req.text()
-    const signature = req.headers.get('x-vapi-signature')
-    
-    if (!signature) {
-      console.warn("VAPI_WEBHOOK_NO_SIGNATURE")
-      return withCors({ error: 'Missing signature' }, 400)
-    }
-
-    // Verify webhook signature
+    // Verify shared secret (same as /api/tools)
     const webhookSecret = process.env.WEBHOOK_SHARED_SECRET
     if (!webhookSecret) {
       console.error("VAPI_WEBHOOK_NO_SECRET")
       return withCors({ error: 'Webhook secret not configured' }, 500)
     }
 
-    if (!verifyWebhookSignature(body, signature, webhookSecret)) {
-      console.warn("VAPI_WEBHOOK_INVALID_SIGNATURE", { signature: signature.substring(0, 10) + '...' })
-      return withCors({ error: 'Invalid signature' }, 401)
+    const providedSecret = req.headers.get('x-shared-secret')
+    if (providedSecret !== webhookSecret) {
+      console.warn("VAPI_WEBHOOK_UNAUTHORIZED")
+      return withCors({ error: 'Unauthorized' }, 401)
     }
 
     // Parse the webhook event
     let event: VapiWebhookEvent
     try {
-      event = JSON.parse(body)
+      event = await req.json()
     } catch (error) {
       console.error("VAPI_WEBHOOK_INVALID_JSON", { error })
       return withCors({ error: 'Invalid JSON' }, 400)
