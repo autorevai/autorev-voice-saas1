@@ -66,6 +66,22 @@ function determineCallOutcome(toolName: string, success: boolean): string {
   }
 }
 
+// Priority order: booked > handoff > unknown > failed
+function getOutcomePriority(outcome: string): number {
+  switch (outcome) {
+    case 'booked': return 4;
+    case 'handoff': return 3;
+    case 'unknown': return 2;
+    case 'failed': return 1;
+    default: return 0;
+  }
+}
+
+function shouldUpdateOutcome(currentOutcome: string | null, newOutcome: string): boolean {
+  if (!currentOutcome) return true; // No existing outcome, always update
+  return getOutcomePriority(newOutcome) > getOutcomePriority(currentOutcome);
+}
+
 async function persistToolResult(
   vapiCallId: string | null,
   toolName: string,
@@ -88,7 +104,20 @@ async function persistToolResult(
     }
 
     const now = new Date().toISOString();
-    const outcome = determineCallOutcome(toolName, success);
+    const newOutcome = determineCallOutcome(toolName, success);
+
+    // Check if call already exists to preserve existing outcome
+    // Priority: booked > handoff > unknown > failed
+    const { data: existingCall } = await db
+      .from('calls')
+      .select('outcome')
+      .eq('vapi_call_id', vapiCallId)
+      .single();
+
+    // Only update outcome if new outcome has higher priority
+    // This prevents "booked" from being overwritten by "handoff"
+    const shouldUpdate = shouldUpdateOutcome(existingCall?.outcome, newOutcome);
+    const finalOutcome = shouldUpdate ? newOutcome : existingCall?.outcome;
 
     // Upsert call record
     const { data: callData, error: callError } = await db
@@ -98,7 +127,7 @@ async function persistToolResult(
         tenant_id: tenantId,
         started_at: now,
         ended_at: now,
-        outcome: outcome,
+        outcome: finalOutcome,
         raw_json: requestJson
       }, {
         onConflict: 'vapi_call_id'
@@ -129,7 +158,9 @@ async function persistToolResult(
         callId: callData.id, 
         toolName, 
         success,
-        outcome
+        outcome: finalOutcome,
+        outcomeUpdated: shouldUpdate,
+        previousOutcome: existingCall?.outcome
       });
     }
 
