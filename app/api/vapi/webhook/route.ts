@@ -1,20 +1,48 @@
+// app/api/vapi/webhook/route.ts
+// Webhook inspector - Updated for VAPI's message envelope structure
+
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
   try {
     const event = await req.json();
-    const eventType = event?.type || 'unknown';
     
-    console.log('VAPI_WEBHOOK_EVENT', {
-      type: eventType,
-      callId: event?.call?.id,
-      timestamp: new Date().toISOString()
+    // VAPI wraps everything in a "message" object
+    const message = event?.message || event;
+    const messageType = message?.type;
+    const call = message?.call;
+    
+    // Log full payload for debugging
+    console.log('VAPI_WEBHOOK_FULL_PAYLOAD', JSON.stringify(event, null, 2));
+    
+    // Log parsed structure
+    console.log('VAPI_WEBHOOK_PARSED', {
+      messageType,
+      callId: call?.id,
+      hasTranscript: !!message?.transcript,
+      transcriptLength: message?.transcript?.length || 0,
+      hasSummary: !!message?.summary,
+      callStartedAt: call?.startedAt,
+      callEndedAt: call?.endedAt,
+      topLevelKeys: Object.keys(event),
+      messageKeys: Object.keys(message || {}),
     });
-
-    // TODO: Process webhook and save to database
-    // - assistant-request: Call started
-    // - status-update: Call status changed  
-    // - end-of-call-report: Call ended (has duration, transcript)
+    
+    // Calculate duration if we have timestamps
+    if (call?.startedAt && call?.endedAt) {
+      const start = new Date(call.startedAt);
+      const end = new Date(call.endedAt);
+      const durationMs = end.getTime() - start.getTime();
+      const durationSec = Math.round(durationMs / 1000);
+      
+      console.log('VAPI_WEBHOOK_DURATION', {
+        callId: call.id,
+        startedAt: call.startedAt,
+        endedAt: call.endedAt,
+        durationSec,
+        durationFormatted: `${Math.floor(durationSec / 60)}m ${durationSec % 60}s`
+      });
+    }
     
     return new Response(JSON.stringify({ received: true }), {
       status: 200,
