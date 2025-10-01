@@ -135,7 +135,7 @@ export type Database = {
           ended_at: string | null
           duration_sec: number | null
           cost_cents: number
-          outcome: 'completed' | 'failed' | 'abandoned' | 'no_answer' | 'busy' | null
+          outcome: 'completed' | 'failed' | 'abandoned' | 'no_answer' | 'busy' | 'booked' | 'handoff' | 'unknown' | null
           transcript_url: string | null
           raw_json: any
           created_at: string
@@ -150,7 +150,7 @@ export type Database = {
           ended_at?: string | null
           duration_sec?: number | null
           cost_cents?: number
-          outcome?: 'completed' | 'failed' | 'abandoned' | 'no_answer' | 'busy' | null
+          outcome?: 'completed' | 'failed' | 'abandoned' | 'no_answer' | 'busy' | 'booked' | 'handoff' | 'unknown' | null
           transcript_url?: string | null
           raw_json?: any
           created_at?: string
@@ -165,7 +165,7 @@ export type Database = {
           ended_at?: string | null
           duration_sec?: number | null
           cost_cents?: number
-          outcome?: 'completed' | 'failed' | 'abandoned' | 'no_answer' | 'busy' | null
+          outcome?: 'completed' | 'failed' | 'abandoned' | 'no_answer' | 'busy' | 'booked' | 'handoff' | 'unknown' | null
           transcript_url?: string | null
           raw_json?: any
           created_at?: string

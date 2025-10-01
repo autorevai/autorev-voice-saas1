@@ -53,6 +53,19 @@ function extractVapiCallId(req: NextRequest, payload: any): string | null {
   return null;
 }
 
+function determineCallOutcome(toolName: string, success: boolean): string {
+  if (!success) return 'failed';
+  
+  switch (toolName) {
+    case 'create_booking':
+      return 'booked';
+    case 'handoff_sms':
+      return 'handoff';
+    default:
+      return 'unknown';
+  }
+}
+
 async function persistToolResult(
   vapiCallId: string | null,
   toolName: string,
@@ -74,13 +87,18 @@ async function persistToolResult(
       return;
     }
 
+    const now = new Date().toISOString();
+    const outcome = determineCallOutcome(toolName, success);
+
     // Upsert call record
     const { data: callData, error: callError } = await db
       .from('calls')
       .upsert({
         vapi_call_id: vapiCallId,
         tenant_id: tenantId,
-        started_at: new Date().toISOString(),
+        started_at: now,
+        ended_at: now,
+        outcome: outcome,
         raw_json: requestJson
       }, {
         onConflict: 'vapi_call_id'
@@ -110,13 +128,41 @@ async function persistToolResult(
       console.info("DB_PERSIST_SUCCESS", { 
         callId: callData.id, 
         toolName, 
-        success 
+        success,
+        outcome
       });
     }
+
+    // Update call with duration if this is the first tool result
+    await updateCallDuration(db, callData.id, callData.started_at, now);
 
     return callData.id;
   } catch (error) {
     console.error("DB_PERSIST_ERROR", { error, toolName, vapiCallId });
+  }
+}
+
+async function updateCallDuration(db: any, callId: string, startedAt: string, endedAt: string) {
+  try {
+    const startTime = new Date(startedAt).getTime();
+    const endTime = new Date(endedAt).getTime();
+    const durationSec = Math.floor((endTime - startTime) / 1000);
+
+    const { error } = await db
+      .from('calls')
+      .update({
+        ended_at: endedAt,
+        duration_sec: durationSec
+      })
+      .eq('id', callId);
+
+    if (error) {
+      console.error("DB_DURATION_UPDATE_ERROR", { error, callId });
+    } else {
+      console.info("DB_DURATION_UPDATED", { callId, durationSec });
+    }
+  } catch (error) {
+    console.error("DB_DURATION_CALC_ERROR", { error, callId });
   }
 }
 

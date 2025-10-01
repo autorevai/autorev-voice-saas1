@@ -7,7 +7,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- Create custom types for enums
 CREATE TYPE user_role AS ENUM ('owner', 'admin', 'user', 'viewer');
 CREATE TYPE assistant_status AS ENUM ('active', 'inactive', 'draft', 'archived');
-CREATE TYPE call_outcome AS ENUM ('completed', 'failed', 'abandoned', 'no_answer', 'busy');
+CREATE TYPE call_outcome AS ENUM ('completed', 'failed', 'abandoned', 'no_answer', 'busy', 'booked', 'handoff', 'unknown');
 CREATE TYPE booking_priority AS ENUM ('urgent', 'high', 'standard', 'low');
 CREATE TYPE booking_source AS ENUM ('voice_call', 'web_form', 'api', 'manual', 'import');
 
