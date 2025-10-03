@@ -1,141 +1,91 @@
 'use server'
 
-import { createClient } from '../../../lib/db'
+import { createClient } from '@/lib/supabase/server'
+import { revalidatePath } from 'next/cache'
 
-interface CreateTenantData {
-  name: string
-  slug: string
-  email: string
+interface OnboardingData {
+  businessName: string
+  industry: string
   phone: string
-  hours: string
-  zips: string
+  serviceArea: string
+  website?: string
+  hoursOfOperation?: string
 }
 
-interface CreateTenantResult {
-  success: boolean
-  tenantId?: string
-  error?: string
-}
+export async function createTenant(data: OnboardingData) {
+  const supabase = await createClient()
+  
+  // Get current authenticated user
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  
+  if (authError || !user) {
+    return {
+      success: false,
+      error: 'Not authenticated'
+    }
+  }
 
-export async function createTenant(formData: CreateTenantData): Promise<CreateTenantResult> {
   try {
-    const db = createClient()
-    
-    // Validate required fields
-    if (!formData.name?.trim()) {
-      return { success: false, error: 'Company name is required' }
-    }
-    
-    if (!formData.slug?.trim()) {
-      return { success: false, error: 'Slug is required' }
-    }
-    
-    if (!formData.email?.trim()) {
-      return { success: false, error: 'Email is required' }
-    }
-    
-    if (!formData.phone?.trim()) {
-      return { success: false, error: 'Phone number is required' }
-    }
-    
-    if (!formData.hours?.trim()) {
-      return { success: false, error: 'Service hours are required' }
-    }
-    
-    if (!formData.zips?.trim()) {
-      return { success: false, error: 'At least one ZIP code is required' }
-    }
-
-    // Validate slug format
-    const slugRegex = /^[a-z0-9-]+$/
-    if (!slugRegex.test(formData.slug)) {
-      return { 
-        success: false, 
-        error: 'Slug can only contain lowercase letters, numbers, and hyphens' 
-      }
-    }
-
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!emailRegex.test(formData.email)) {
-      return { 
-        success: false, 
-        error: 'Please enter a valid email address' 
-      }
-    }
-
-    // Validate ZIP codes format
-    const zipList = formData.zips.split(',').map(zip => zip.trim())
-    const invalidZips = zipList.filter(zip => !/^\d{5}$/.test(zip))
-    if (invalidZips.length > 0) {
-      return { 
-        success: false, 
-        error: 'All ZIP codes must be 5 digits' 
-      }
-    }
-
-    // Check if slug is already taken
-    const { data: existingTenant, error: checkError } = await db
+    // Create tenant
+    const { data: tenant, error: tenantError } = await supabase
       .from('tenants')
-      .select('id, slug')
-      .eq('slug', formData.slug)
+      .insert([
+        {
+          business_name: data.businessName,
+          industry: data.industry,
+          phone: data.phone,
+          website: data.website,
+          hours_of_operation: data.hoursOfOperation,
+          service_area: data.serviceArea,
+          status: 'active',
+        },
+      ])
+      .select()
       .single()
 
-    if (checkError && checkError.code !== 'PGRST116') {
-      // PGRST116 is "not found" error, which is what we want
-      console.error('Error checking slug uniqueness:', checkError)
-      return { 
-        success: false, 
-        error: 'Failed to validate slug availability' 
+    if (tenantError) {
+      console.error('Tenant creation error:', tenantError)
+      return {
+        success: false,
+        error: tenantError.message
       }
     }
 
-    if (existingTenant) {
-      return { 
-        success: false, 
-        error: 'This slug is already taken. Please choose a different one.' 
+    // Create user record linked to tenant
+    const { error: userError } = await supabase
+      .from('users')
+      .insert([
+        {
+          id: user.id,
+          tenant_id: tenant.id,
+          email: user.email!,
+          full_name: user.user_metadata?.full_name || '',
+          role: 'owner',
+        },
+      ])
+
+    if (userError) {
+      console.error('User creation error:', userError)
+      // Try to clean up tenant if user creation fails
+      await supabase.from('tenants').delete().eq('id', tenant.id)
+      return {
+        success: false,
+        error: userError.message
       }
     }
 
-    // Create the tenant
-    const { data: newTenant, error: insertError } = await db
-    .from('tenants')
-    .insert({
-      name: formData.name.trim(),
-      slug: formData.slug.trim(),
-      email: formData.email.trim(),
-      phone: formData.phone.trim(),
-      hours: formData.hours.trim(),
-      service_zips: formData.zips.trim()  // Note: "zips" → "service_zips"
-    })
-    .select()
-    .single()
-
-    if (insertError) {
-      console.error('Error creating tenant:', insertError)
-      return { 
-        success: false, 
-        error: 'Failed to create tenant. Please try again.' 
-      }
+    revalidatePath('/dashboard')
+    
+    return {
+      success: true,
+      tenantId: tenant.id,
+      message: 'Account created successfully!'
     }
-
-    if (!newTenant) {
-      return { 
-        success: false, 
-        error: 'Failed to create tenant. Please try again.' 
-      }
-    }
-
-    return { 
-      success: true, 
-      tenantId: newTenant.id 
-    }
-
-  } catch (error) {
-    console.error('Unexpected error in createTenant:', error)
-    return { 
-      success: false, 
-      error: 'An unexpected error occurred. Please try again.' 
+  } catch (error: any) {
+    console.error('Onboarding error:', error)
+    return {
+      success: false,
+      error: error.message || 'Failed to create account'
     }
   }
 }
