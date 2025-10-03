@@ -272,14 +272,7 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
                 />
                 <Bar 
                   dataKey="value" 
-                  fill={(entry: any) => {
-                    switch (entry.name) {
-                      case 'Booked': return '#3b82f6';
-                      case 'Handoff': return '#8b5cf6';
-                      case 'Unknown': return '#6b7280';
-                      default: return '#3b82f6';
-                    }
-                  }}
+                  fill="#3b82f6"
                   radius={[0, 4, 4, 0]}
                 />
               </BarChart>

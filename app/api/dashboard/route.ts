@@ -1,6 +1,6 @@
 // app/api/dashboard/route.ts
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient } from '../../../lib/db';
 
 const DEMO_TENANT_ID = '00000000-0000-0000-0000-000000000001';
 
@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
   try {
-    const supabase = await createClient();
+    const supabase = createClient();
     const { searchParams } = new URL(request.url);
     
     // Get date range from query params (for filtering)
@@ -145,8 +145,8 @@ export async function GET(request: Request) {
         callsByHour,
         outcomeDistribution: Object.entries(outcomeStats).map(([outcome, count]) => ({
           outcome,
-          count,
-          percentage: Math.round((count / filteredCalls.length) * 100)
+          count: count as number,
+          percentage: Math.round(((count as number) / filteredCalls.length) * 100)
         }))
       },
       recentCalls: filteredCalls.slice(0, 10),
