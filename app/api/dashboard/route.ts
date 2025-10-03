@@ -1,214 +1,163 @@
-import { createClient } from '../../../lib/db'
-import { NextResponse } from 'next/server'
+// app/api/dashboard/route.ts
+import { NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
 
-interface DashboardData {
-  callsToday: number
-  bookingsToday: number
-  totalBookings: number
-  conversionRate: number
-  recentCalls: any[]
-  // Chart data
-  callsByDay: { date: string; calls: number }[]
-  conversionFunnel: { name: string; value: number; percentage: number }[]
-  callsByHour: { hour: string; calls: number }[]
-  // Trend data
-  callsTodayTrend: number
-  bookingsTodayTrend: number
-  conversionRateTrend: number
-  totalBookingsTrend: number
-}
+const DEMO_TENANT_ID = '00000000-0000-0000-0000-000000000001';
 
-export async function GET() {
+export const dynamic = 'force-dynamic';
+
+export async function GET(request: Request) {
   try {
-    const db = createClient()
-    const tenantId = process.env.DEMO_TENANT_ID
+    const supabase = await createClient();
+    const { searchParams } = new URL(request.url);
     
-    if (!tenantId) {
-      return NextResponse.json(
-        { error: 'DEMO_TENANT_ID not configured' }, 
-        { status: 500 }
-      )
+    // Get date range from query params (for filtering)
+    const startDate = searchParams.get('startDate');
+    const endDate = searchParams.get('endDate');
+
+    // Build date filter
+    let dateFilter = {};
+    if (startDate && endDate) {
+      dateFilter = {
+        started_at: {
+          gte: startDate,
+          lte: endDate
+        }
+      };
     }
 
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    const todayISO = today.toISOString()
-
-    // Get calls today
-    const { count: callsToday } = await db
+    // Fetch all calls for the tenant with date filtering
+    const { data: calls, error: callsError } = await supabase
       .from('calls')
-      .select('*', { count: 'exact', head: true })
-      .eq('tenant_id', tenantId)
-      .gte('started_at', todayISO)
+      .select('*')
+      .eq('tenant_id', DEMO_TENANT_ID)
+      .order('started_at', { ascending: false });
 
-    // Get bookings today
-    const { count: bookingsToday } = await db
+    if (callsError) throw callsError;
+
+    // Filter calls by date range if provided
+    const filteredCalls = calls?.filter(call => {
+      if (!startDate || !endDate) return true;
+      const callDate = new Date(call.started_at);
+      return callDate >= new Date(startDate) && callDate <= new Date(endDate);
+    }) || [];
+
+    // Fetch bookings
+    const { data: bookings, error: bookingsError } = await supabase
       .from('bookings')
-      .select('*', { count: 'exact', head: true })
-      .eq('tenant_id', tenantId)
-      .gte('created_at', todayISO)
+      .select('*')
+      .eq('tenant_id', DEMO_TENANT_ID)
+      .order('created_at', { ascending: false });
 
-    // Get total bookings
-    const { count: totalBookings } = await db
-      .from('bookings')
-      .select('*', { count: 'exact', head: true })
-      .eq('tenant_id', tenantId)
+    if (bookingsError) throw bookingsError;
 
-    // Get recent calls with customer names from bookings
-    // LEFT JOIN with bookings table to get customer name if available
-    const { data: recentCalls } = await db
-      .from('calls')
-      .select(`
-        id, 
-        vapi_call_id, 
-        started_at, 
-        ended_at, 
-        duration_sec, 
-        outcome,
-        bookings!left(name, phone)
-      `)
-      .eq('tenant_id', tenantId)
-      .order('started_at', { ascending: false })
-      .limit(20)
+    // Calculate metrics
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    
+    const callsToday = filteredCalls.filter(call => 
+      new Date(call.started_at) >= todayStart
+    ).length;
 
-    const conversionRate = callsToday && callsToday > 0 
-      ? Math.round((bookingsToday || 0) / callsToday * 100) 
-      : 0
+    const bookingsToday = bookings?.filter(booking => 
+      new Date(booking.created_at) >= todayStart
+    ).length || 0;
 
-    // Get calls by day for last 7 days
-    const sevenDaysAgo = new Date()
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
-    sevenDaysAgo.setHours(0, 0, 0, 0)
+    const totalBookings = bookings?.length || 0;
+    
+    const conversionRate = filteredCalls.length > 0 
+      ? Math.round((totalBookings / filteredCalls.length) * 100)
+      : 0;
 
-    const { data: callsByDayData } = await db
-      .from('calls')
-      .select('started_at')
-      .eq('tenant_id', tenantId)
-      .gte('started_at', sevenDaysAgo.toISOString())
-      .order('started_at', { ascending: true })
+    // Calculate outcome distribution
+    const outcomeStats = filteredCalls.reduce((acc, call) => {
+      const outcome = call.outcome || 'unknown';
+      acc[outcome] = (acc[outcome] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
 
-    // Process calls by day
-    const callsByDayMap = new Map<string, number>()
-    const today = new Date()
+    // Calculate calls by day (last 7 days)
+    const callsByDayMap = new Map<string, number>();
+    const baseDate = new Date();
+    
     for (let i = 6; i >= 0; i--) {
-      const date = new Date(today)
-      date.setDate(date.getDate() - i)
-      const dateStr = date.toISOString().split('T')[0]
-      callsByDayMap.set(dateStr, 0)
+      const date = new Date(baseDate);
+      date.setDate(date.getDate() - i);
+      const dateStr = date.toISOString().split('T')[0];
+      callsByDayMap.set(dateStr, 0);
     }
 
-    callsByDayData?.forEach(call => {
-      const dateStr = call.started_at.split('T')[0]
+    filteredCalls.forEach(call => {
+      const dateStr = new Date(call.started_at).toISOString().split('T')[0];
       if (callsByDayMap.has(dateStr)) {
-        callsByDayMap.set(dateStr, (callsByDayMap.get(dateStr) || 0) + 1)
+        callsByDayMap.set(dateStr, callsByDayMap.get(dateStr)! + 1);
       }
-    })
+    });
 
-    const callsByDay = Array.from(callsByDayMap.entries()).map(([date, calls]) => ({
+    const callsByDay = Array.from(callsByDayMap.entries()).map(([date, count]) => ({
       date: new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-      calls
-    }))
+      calls: count
+    }));
 
-    // Get conversion funnel data
-    const { data: allCalls } = await db
-      .from('calls')
-      .select('outcome')
-      .eq('tenant_id', tenantId)
-
-    const totalCalls = allCalls?.length || 0
-    const bookedCalls = allCalls?.filter(call => call.outcome === 'booked').length || 0
-    const handoffCalls = allCalls?.filter(call => call.outcome === 'handoff').length || 0
-    const unknownCalls = allCalls?.filter(call => call.outcome === 'unknown' || !call.outcome).length || 0
-
-    const conversionFunnel = [
-      { name: 'Total Calls', value: totalCalls, percentage: 100 },
-      { name: 'Booked', value: bookedCalls, percentage: totalCalls > 0 ? Math.round((bookedCalls / totalCalls) * 100) : 0 },
-      { name: 'Handoff', value: handoffCalls, percentage: totalCalls > 0 ? Math.round((handoffCalls / totalCalls) * 100) : 0 },
-      { name: 'Unknown', value: unknownCalls, percentage: totalCalls > 0 ? Math.round((unknownCalls / totalCalls) * 100) : 0 }
-    ]
-
-    // Get calls by hour for today
-    const todayStart = new Date()
-    todayStart.setHours(0, 0, 0, 0)
-    const todayEnd = new Date()
-    todayEnd.setHours(23, 59, 59, 999)
-
-    const { data: callsByHourData } = await db
-      .from('calls')
-      .select('started_at')
-      .eq('tenant_id', tenantId)
-      .gte('started_at', todayStart.toISOString())
-      .lte('started_at', todayEnd.toISOString())
-
-    // Process calls by hour
-    const callsByHourMap = new Map<string, number>()
-    callsByHourData?.forEach(call => {
-      const hour = new Date(call.started_at).getHours()
-      const hourStr = hour === 0 ? '12am' : hour < 12 ? `${hour}am` : hour === 12 ? '12pm' : `${hour - 12}pm`
-      callsByHourMap.set(hourStr, (callsByHourMap.get(hourStr) || 0) + 1)
-    })
-
-    const callsByHour = Array.from(callsByHourMap.entries())
-      .map(([hour, calls]) => ({ hour, calls }))
-      .sort((a, b) => {
-        const aHour = a.hour.includes('am') ? parseInt(a.hour) : parseInt(a.hour) + 12
-        const bHour = b.hour.includes('am') ? parseInt(b.hour) : parseInt(b.hour) + 12
-        return aHour - bHour
-      })
-
-    // Calculate trends (simplified - comparing with yesterday)
-    const yesterday = new Date()
-    yesterday.setDate(yesterday.getDate() - 1)
-    yesterday.setHours(0, 0, 0, 0)
-    const yesterdayEnd = new Date(yesterday)
-    yesterdayEnd.setHours(23, 59, 59, 999)
-
-    const { count: callsYesterday } = await db
-      .from('calls')
-      .select('*', { count: 'exact', head: true })
-      .eq('tenant_id', tenantId)
-      .gte('started_at', yesterday.toISOString())
-      .lte('started_at', yesterdayEnd.toISOString())
-
-    const { count: bookingsYesterday } = await db
-      .from('bookings')
-      .select('*', { count: 'exact', head: true })
-      .eq('tenant_id', tenantId)
-      .gte('created_at', yesterday.toISOString())
-      .lte('created_at', yesterdayEnd.toISOString())
-
-    const callsTodayTrend = callsYesterday && callsYesterday > 0 
-      ? Math.round(((callsToday || 0) - callsYesterday) / callsYesterday * 100)
-      : 0
-
-    const bookingsTodayTrend = bookingsYesterday && bookingsYesterday > 0
-      ? Math.round(((bookingsToday || 0) - bookingsYesterday) / bookingsYesterday * 100)
-      : 0
-
-    const conversionRateTrend = 0 // Simplified for now
-    const totalBookingsTrend = 0 // Simplified for now
-
-    const data: DashboardData = {
-      callsToday: callsToday || 0,
-      bookingsToday: bookingsToday || 0,
-      totalBookings: totalBookings || 0,
-      conversionRate,
-      recentCalls: recentCalls || [],
-      callsByDay,
-      conversionFunnel,
-      callsByHour,
-      callsTodayTrend,
-      bookingsTodayTrend,
-      conversionRateTrend,
-      totalBookingsTrend
+    // Calculate calls by hour
+    const callsByHourMap = new Map<number, number>();
+    
+    for (let hour = 0; hour < 24; hour++) {
+      callsByHourMap.set(hour, 0);
     }
 
-    return NextResponse.json(data)
+    filteredCalls.forEach(call => {
+      const hour = new Date(call.started_at).getHours();
+      callsByHourMap.set(hour, callsByHourMap.get(hour)! + 1);
+    });
+
+    // Only include hours with activity
+    const callsByHour = Array.from(callsByHourMap.entries())
+      .filter(([_, count]) => count > 0)
+      .map(([hour, count]) => ({
+        hour: `${hour % 12 || 12}${hour >= 12 ? 'pm' : 'am'}`,
+        calls: count
+      }));
+
+    // Calculate trends (compare to previous period)
+    const previousPeriodStart = new Date(todayStart);
+    previousPeriodStart.setDate(previousPeriodStart.getDate() - 7);
+    
+    const callsPreviousWeek = calls?.filter(call => {
+      const callDate = new Date(call.started_at);
+      return callDate >= previousPeriodStart && callDate < todayStart;
+    }).length || 0;
+
+    const callsTrend = callsPreviousWeek > 0 
+      ? Math.round(((filteredCalls.length - callsPreviousWeek) / callsPreviousWeek) * 100)
+      : 0;
+
+    return NextResponse.json({
+      metrics: {
+        callsToday,
+        bookingsToday,
+        conversionRate,
+        totalBookings,
+        callsTrend
+      },
+      charts: {
+        callsByDay,
+        callsByHour,
+        outcomeDistribution: Object.entries(outcomeStats).map(([outcome, count]) => ({
+          outcome,
+          count,
+          percentage: Math.round((count / filteredCalls.length) * 100)
+        }))
+      },
+      recentCalls: filteredCalls.slice(0, 10),
+      recentBookings: bookings?.slice(0, 5) || []
+    });
+
   } catch (error) {
-    console.error('Dashboard API error:', error)
+    console.error('Dashboard API Error:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch dashboard data' }, 
+      { error: 'Failed to fetch dashboard data' },
       { status: 500 }
-    )
+    );
   }
 }
