@@ -35,16 +35,18 @@ export function TenantProvider({ children }: { children: ReactNode }) {
       return
     }
 
-    // Get user's tenant access
+    // Get user's tenant access with explicit field selection
     const { data: userRecord } = await supabase
       .from('users')
-      .select('tenant_id, tenants(*)')
+      .select('tenant_id, tenants(id, business_name, industry, phone)')
       .eq('id', user.id)
       .single()
 
     if (userRecord?.tenants) {
-      setCurrentTenant(userRecord.tenants as Tenant)
-      setTenants([userRecord.tenants as Tenant])
+      // Cast through unknown to satisfy TypeScript
+      const tenant = userRecord.tenants as unknown as Tenant
+      setCurrentTenant(tenant)
+      setTenants([tenant])
     }
 
     setLoading(false)
