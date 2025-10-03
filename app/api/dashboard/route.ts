@@ -1,25 +1,12 @@
 import { createClient } from '../../../lib/db'
-import DashboardClient from './components/DashboardClient'
-
-interface Call {
-  id: string
-  vapi_call_id: string
-  started_at: string
-  ended_at: string | null
-  duration_sec: number | null
-  outcome: string | null
-  bookings?: {
-    name: string
-    phone: string
-  }[] | null
-}
+import { NextResponse } from 'next/server'
 
 interface DashboardData {
   callsToday: number
   bookingsToday: number
   totalBookings: number
   conversionRate: number
-  recentCalls: Call[]
+  recentCalls: any[]
   // Chart data
   callsByDay: { date: string; calls: number }[]
   conversionFunnel: { name: string; value: number; percentage: number }[]
@@ -31,19 +18,22 @@ interface DashboardData {
   totalBookingsTrend: number
 }
 
-async function getDashboardData(): Promise<DashboardData> {
-  const db = createClient()
-  const tenantId = process.env.DEMO_TENANT_ID
-  
-  if (!tenantId) {
-    throw new Error('DEMO_TENANT_ID not configured')
-  }
-
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const todayISO = today.toISOString()
-
+export async function GET() {
   try {
+    const db = createClient()
+    const tenantId = process.env.DEMO_TENANT_ID
+    
+    if (!tenantId) {
+      return NextResponse.json(
+        { error: 'DEMO_TENANT_ID not configured' }, 
+        { status: 500 }
+      )
+    }
+
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const todayISO = today.toISOString()
+
     // Get calls today
     const { count: callsToday } = await db
       .from('calls')
@@ -198,7 +188,7 @@ async function getDashboardData(): Promise<DashboardData> {
     const conversionRateTrend = 0 // Simplified for now
     const totalBookingsTrend = 0 // Simplified for now
 
-    return {
+    const data: DashboardData = {
       callsToday: callsToday || 0,
       bookingsToday: bookingsToday || 0,
       totalBookings: totalBookings || 0,
@@ -212,36 +202,13 @@ async function getDashboardData(): Promise<DashboardData> {
       conversionRateTrend,
       totalBookingsTrend
     }
-  } catch (error) {
-    console.error('Dashboard data fetch error:', error)
-    throw new Error('Failed to fetch dashboard data')
-  }
-}
 
-export default async function DashboardPage() {
-  let data: DashboardData
-
-  try {
-    data = await getDashboardData()
+    return NextResponse.json(data)
   } catch (error) {
-    return (
-      <div className="min-h-screen bg-gray-50 p-6">
-        <div className="max-w-7xl mx-auto">
-          <h1 className="text-2xl font-bold text-gray-900 mb-6">Dashboard</h1>
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-            <p className="text-red-800">Error loading dashboard data. Please check your configuration.</p>
-          </div>
-        </div>
-      </div>
+    console.error('Dashboard API error:', error)
+    return NextResponse.json(
+      { error: 'Failed to fetch dashboard data' }, 
+      { status: 500 }
     )
   }
-
-  return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-7xl mx-auto">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">Dashboard</h1>
-        <DashboardClient initialData={data} />
-      </div>
-    </div>
-  )
 }

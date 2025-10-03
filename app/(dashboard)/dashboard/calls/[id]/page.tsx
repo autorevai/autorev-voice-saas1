@@ -2,6 +2,7 @@ import { createClient } from '../../../../../lib/db'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import TranscriptViewer from '../components/TranscriptViewer'
+import ToolResultCard from '../components/ToolResultCard'
 
 interface Call {
   id: string
@@ -10,7 +11,6 @@ interface Call {
   ended_at: string | null
   duration_sec: number | null
   outcome: string | null
-  cost_cents: number
   transcript_url: string | null
   raw_json: any
 }
@@ -86,9 +86,6 @@ function formatDateTime(dateString: string): string {
   })
 }
 
-function formatCost(cents: number): string {
-  return `$${(cents / 100).toFixed(2)}`
-}
 
 function getOutcomeColor(outcome: string | null): string {
   switch (outcome) {
@@ -153,13 +150,8 @@ export default async function CallDetailsPage({ params }: { params: Promise<{ id
           </div>
         </div>
 
-        {/* Additional Info */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-sm font-medium text-gray-500 mb-2">Cost</h3>
-            <p className="text-lg text-gray-900">{formatCost(call.cost_cents)}</p>
-          </div>
-
+        {/* Transcript Info */}
+        <div className="mb-8">
           <div className="bg-white rounded-lg shadow p-6">
             <h3 className="text-sm font-medium text-gray-500 mb-2">Transcript</h3>
             {call.transcript_url ? (
@@ -181,50 +173,22 @@ export default async function CallDetailsPage({ params }: { params: Promise<{ id
         <div className="bg-white shadow rounded-lg mb-8">
           <div className="px-6 py-4 border-b border-gray-200">
             <h2 className="text-lg font-medium text-gray-900">Tool Results ({toolResults.length})</h2>
+            <p className="text-sm text-gray-500 mt-1">AI assistant actions during this call</p>
           </div>
           <div className="p-6">
             {toolResults.length === 0 ? (
-              <p className="text-gray-500">No tool calls recorded for this call.</p>
+              <div className="text-center py-8">
+                <div className="text-gray-400 mb-2">
+                  <svg className="mx-auto h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                </div>
+                <p className="text-gray-500">No tool calls recorded for this call.</p>
+              </div>
             ) : (
-              <div className="space-y-6">
+              <div className="space-y-4">
                 {toolResults.map((result, index) => (
-                  <div key={result.id} className="border border-gray-200 rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <h3 className="text-sm font-medium text-gray-900">
-                        Tool Call #{index + 1}: {result.tool_name}
-                      </h3>
-                      <div className="flex items-center space-x-2">
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                          result.success ? 'text-green-600 bg-green-100' : 'text-red-600 bg-red-100'
-                        }`}>
-                          {result.success ? 'Success' : 'Failed'}
-                        </span>
-                        <span className="text-xs text-gray-500">
-                          {formatDateTime(result.created_at)}
-                        </span>
-                      </div>
-                    </div>
-                    
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                      <div>
-                        <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">
-                          Request
-                        </h4>
-                        <pre className="bg-gray-50 rounded p-3 text-xs overflow-x-auto">
-                          {JSON.stringify(result.request_json, null, 2)}
-                        </pre>
-                      </div>
-                      
-                      <div>
-                        <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">
-                          Response
-                        </h4>
-                        <pre className="bg-gray-50 rounded p-3 text-xs overflow-x-auto">
-                          {JSON.stringify(result.response_json, null, 2)}
-                        </pre>
-                      </div>
-                    </div>
-                  </div>
+                  <ToolResultCard key={result.id} result={result} index={index} />
                 ))}
               </div>
             )}
