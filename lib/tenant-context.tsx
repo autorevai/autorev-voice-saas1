@@ -24,29 +24,46 @@ export function TenantProvider({ children }: { children: ReactNode }) {
   const [currentTenant, setCurrentTenant] = useState<Tenant | null>(null)
   const [tenants, setTenants] = useState<Tenant[]>([])
   const [loading, setLoading] = useState(true)
-  const supabase = createClient()
+  
+  let supabase: any = null
+  try {
+    supabase = createClient()
+  } catch (error) {
+    console.warn('Supabase client creation failed:', error)
+  }
 
   async function fetchTenants() {
     setLoading(true)
-    const { data: { user } } = await supabase.auth.getUser()
     
-    if (!user) {
+    if (!supabase) {
       setLoading(false)
       return
     }
+    
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      
+      if (!user) {
+        setLoading(false)
+        return
+      }
 
-    // Get user's tenant access with explicit field selection
-    const { data: userRecord } = await supabase
-      .from('users')
-      .select('tenant_id, tenants(id, business_name, industry, phone)')
-      .eq('id', user.id)
-      .single()
+      // Get user's tenant access with explicit field selection
+      const { data: userRecord } = await supabase
+        .from('users')
+        .select('tenant_id, tenants(id, business_name, industry, phone)')
+        .eq('id', user.id)
+        .single()
 
-    if (userRecord?.tenants) {
-      // Cast through unknown to satisfy TypeScript
-      const tenant = userRecord.tenants as unknown as Tenant
-      setCurrentTenant(tenant)
-      setTenants([tenant])
+      if (userRecord?.tenants) {
+        // Cast through unknown to satisfy TypeScript
+        const tenant = userRecord.tenants as unknown as Tenant
+        setCurrentTenant(tenant)
+        setTenants([tenant])
+      }
+    } catch (error) {
+      console.warn('Failed to fetch tenants:', error)
+      // Gracefully handle missing environment variables
     }
 
     setLoading(false)
@@ -64,12 +81,14 @@ export function TenantProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     fetchTenants()
 
-    // Subscribe to auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
-      fetchTenants()
-    })
+    if (supabase) {
+      // Subscribe to auth changes
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
+        fetchTenants()
+      })
 
-    return () => subscription.unsubscribe()
+      return () => subscription.unsubscribe()
+    }
   }, [])
 
   return (
