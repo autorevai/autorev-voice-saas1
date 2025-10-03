@@ -116,12 +116,12 @@ export default function OnboardingPage() {
     if (validateStep(3)) {
       try {
         const result = await createTenant({
-          name: formData.companyName,
-          slug: formData.slug,
-          email: formData.email,
+          businessName: formData.companyName,
+          industry: 'Service Business', // Default industry - could be made configurable
           phone: formData.phone,
-          hours: formData.serviceHours,
-          zips: formData.zipCodes
+          serviceArea: formData.zipCodes,
+          website: '', // Optional - could be added to form
+          hoursOfOperation: formData.serviceHours
         })
 
         if (result.success) {
