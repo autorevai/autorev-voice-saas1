@@ -3,22 +3,18 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
-  let response = NextResponse.next({
-    request: {
-      headers: request.headers,
-    },
-  })
+  let response = NextResponse.next()
+
+  // Check env vars exist
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    console.warn('[Middleware] Supabase env vars not available - allowing request')
+    return response
+  }
 
   try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-    // Skip auth check if env vars not available
-    if (!supabaseUrl || !supabaseAnonKey) {
-      console.error('[Middleware] Missing Supabase environment variables')
-      return response
-    }
-
     const supabase = createServerClient(
       supabaseUrl,
       supabaseAnonKey,
@@ -28,38 +24,10 @@ export async function middleware(request: NextRequest) {
             return request.cookies.get(name)?.value
           },
           set(name: string, value: string, options) {
-            request.cookies.set({
-              name,
-              value,
-              ...options,
-            })
-            response = NextResponse.next({
-              request: {
-                headers: request.headers,
-              },
-            })
-            response.cookies.set({
-              name,
-              value,
-              ...options,
-            })
+            response.cookies.set({ name, value, ...options })
           },
           remove(name: string, options) {
-            request.cookies.set({
-              name,
-              value: '',
-              ...options,
-            })
-            response = NextResponse.next({
-              request: {
-                headers: request.headers,
-              },
-            })
-            response.cookies.set({
-              name,
-              value: '',
-              ...options,
-            })
+            response.cookies.delete({ name, ...options })
           },
         },
       }
@@ -74,7 +42,7 @@ export async function middleware(request: NextRequest) {
 
     // Redirect authenticated users away from auth pages
     if (session && isAuthPage) {
-      return NextResponse.redirect(new URL('/dashboard', request.url))
+      return NextResponse.redirect(new URL('/onboarding', request.url))
     }
 
     // Redirect unauthenticated users to login
@@ -86,9 +54,8 @@ export async function middleware(request: NextRequest) {
 
     return response
   } catch (error) {
-    // Log error but don't block the request
     console.error('[Middleware Error]', error)
-    return response
+    return response // Don't block request on error
   }
 }
 
