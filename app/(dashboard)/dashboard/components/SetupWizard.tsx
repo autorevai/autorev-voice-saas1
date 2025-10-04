@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { X, Phone, MapPin, Clock, Building, ExternalLink } from 'lucide-react'
+import { X, Phone, MapPin, Clock, Building, ExternalLink, Smartphone } from 'lucide-react'
+import { useTenant } from '@/lib/tenant-context'
 
 interface SetupWizardProps {
   onComplete?: () => void
@@ -11,29 +12,94 @@ export default function SetupWizard({ onComplete }: SetupWizardProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [currentStep, setCurrentStep] = useState(1)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<{ assistantId: string; phoneNumber: string } | null>(null)
+  const { currentTenant } = useTenant()
   const [formData, setFormData] = useState({
     serviceArea: '',
     serviceHours: '',
     phoneNumber: '',
+    forwardingNumber: '',
     googleBusinessProfile: '',
     industry: ''
   })
 
+  const validateForm = () => {
+    if (!formData.serviceArea.trim()) {
+      setError('Service area is required')
+      return false
+    }
+    if (!formData.serviceHours.trim()) {
+      setError('Business hours are required')
+      return false
+    }
+    if (!formData.phoneNumber.trim()) {
+      setError('Business phone number is required')
+      return false
+    }
+    if (!formData.forwardingNumber.trim()) {
+      setError('Forwarding number is required')
+      return false
+    }
+    if (!formData.industry) {
+      setError('Industry selection is required')
+      return false
+    }
+    return true
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
+    setError(null)
     
     try {
-      // TODO: Call VAPI provisioner service
-      console.log('Setting up VAPI assistant with:', formData)
-      
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 2000))
-      
-      setIsOpen(false)
-      onComplete?.()
+      if (!validateForm()) {
+        setLoading(false)
+        return
+      }
+
+      if (!currentTenant) {
+        throw new Error('No tenant found. Please refresh and try again.')
+      }
+
+      // Call the provisioning API
+      const response = await fetch('/api/provision', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          tenantId: currentTenant.id,
+          businessName: currentTenant.business_name,
+          market: formData.industry || 'hvac',
+        }),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to provision assistant')
+      }
+
+      if (!result.success) {
+        throw new Error(result.error || 'Provisioning failed')
+      }
+
+      setSuccess({
+        assistantId: result.assistantId,
+        phoneNumber: result.phoneNumber
+      })
+
+      // Close wizard after a short delay to show success
+      setTimeout(() => {
+        setIsOpen(false)
+        onComplete?.()
+      }, 3000)
+
     } catch (error) {
       console.error('Setup failed:', error)
+      setError(error instanceof Error ? error.message : 'Setup failed. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -43,7 +109,8 @@ export default function SetupWizard({ onComplete }: SetupWizardProps) {
     { number: 1, title: 'Service Area', icon: MapPin },
     { number: 2, title: 'Business Hours', icon: Clock },
     { number: 3, title: 'Contact Info', icon: Phone },
-    { number: 4, title: 'Business Profile', icon: Building }
+    { number: 4, title: 'Forwarding Number', icon: Smartphone },
+    { number: 5, title: 'Business Profile', icon: Building }
   ]
 
   if (!isOpen) {
@@ -137,6 +204,33 @@ export default function SetupWizard({ onComplete }: SetupWizardProps) {
           </div>
         </div>
 
+        {/* Error/Success Messages */}
+        {error && (
+          <div className="mx-6 mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-sm text-red-800">{error}</p>
+          </div>
+        )}
+
+        {success && (
+          <div className="mx-6 mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+            <div className="flex items-start">
+              <div className="flex-shrink-0">
+                <div className="w-5 h-5 bg-green-100 rounded-full flex items-center justify-center">
+                  <span className="text-green-600 text-sm">✓</span>
+                </div>
+              </div>
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-green-800">Setup Complete!</h3>
+                <div className="mt-2 text-sm text-green-700">
+                  <p><strong>Assistant ID:</strong> {success.assistantId}</p>
+                  <p><strong>Phone Number:</strong> {success.phoneNumber}</p>
+                  <p className="mt-1">Your AI voice agent is now ready to take calls!</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6">
           {currentStep === 1 && (
@@ -177,7 +271,7 @@ export default function SetupWizard({ onComplete }: SetupWizardProps) {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Phone Number
+                  Business Phone Number
                 </label>
                 <input
                   type="tel"
@@ -187,13 +281,33 @@ export default function SetupWizard({ onComplete }: SetupWizardProps) {
                   placeholder="(555) 123-4567"
                 />
                 <p className="text-sm text-gray-500 mt-1">
-                  This number will receive forwarded calls from your AI agent
+                  Your business phone number for customer reference
                 </p>
               </div>
             </div>
           )}
 
           {currentStep === 4 && (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Forwarding Number
+                </label>
+                <input
+                  type="tel"
+                  value={formData.forwardingNumber}
+                  onChange={(e) => setFormData(prev => ({ ...prev, forwardingNumber: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="(555) 987-6543"
+                />
+                <p className="text-sm text-gray-500 mt-1">
+                  This number will receive forwarded calls from your AI agent when customers need to speak to a human
+                </p>
+              </div>
+            </div>
+          )}
+
+          {currentStep === 5 && (
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -255,10 +369,10 @@ export default function SetupWizard({ onComplete }: SetupWizardProps) {
             ) : (
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || success}
                 className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                {loading ? 'Setting up...' : 'Complete Setup'}
+                {loading ? 'Setting up...' : success ? 'Setup Complete!' : 'Complete Setup'}
               </button>
             )}
           </div>
