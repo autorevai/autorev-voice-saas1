@@ -35,9 +35,10 @@ function preview(obj: any, keys: string[] = []) {
 
 function confirmSecret(req: NextRequest) {
   const expected = process.env.WEBHOOK_SHARED_SECRET ?? "";
-  const got = req.headers.get("x-shared-secret") ?? "";
+  const hdr = req.headers.get("x-shared-secret") ?? "";
+  const token = hdr.startsWith('Bearer ') ? hdr.slice(7) : hdr;
   // Allow if no secret set; otherwise require exact match
-  return expected ? got === expected : true;
+  return expected ? token === expected : true;
 }
 
 // ---------- database persistence helpers ----------
@@ -585,7 +586,7 @@ export async function POST(req: NextRequest) {
     hasMessageEnvelope: Boolean(payload?.message),
   });
 
-  // Route to handler
+  // Route to handler and return exact, unambiguous success envelope
   let result: any;
   try {
     switch (toolName) {
@@ -618,14 +619,11 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const ms = Date.now() - t0;
-  const responseBody = { ...result, ms };
-
   // Output log (exact body we return)
   console.info("TOOL_CALL_OUT", {
     ts: new Date().toISOString(),
     toolName,
-    response: responseBody,
+    response: result,
   });
 
   // Database persistence (non-blocking side effect)
@@ -635,7 +633,7 @@ export async function POST(req: NextRequest) {
       vapiCallId,
       toolName,
       args,
-      responseBody,
+      result,
       result.success || false
     );
 
@@ -648,5 +646,5 @@ export async function POST(req: NextRequest) {
     console.error("DB_PERSIST_SIDE_EFFECT_ERROR", { error, toolName });
   }
 
-  return withCors(responseBody, 200);
+  return withCors(result, 200);
 }
