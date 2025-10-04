@@ -364,6 +364,9 @@ function handleCreateBooking(args: any) {
 
   // Success case: we have customer data
   if (args?.name || args?.phone || args?.address) {
+    // CRITICAL: Use "to" not dash for TTS (prevents "$8-11" becoming "$811")
+    const windowStr = args?.window || "8 to 11";
+    
     console.info("BOOKING_SUCCESS", { 
       customer: rec.name,
       phone: rec.phone,
@@ -374,8 +377,15 @@ function handleCreateBooking(args: any) {
       success: true,
       tool: "create_booking",
       status: "booked",
-      window: "8 to 11 AM",
-      message: "Successfully booked for 8 to 11 AM tomorrow",
+      window: windowStr,
+      
+      // CRITICAL FOR GPT-4o MINI: Explicit sentence to speak
+      say: `Perfect! You're all set for ${windowStr}. We'll see you then.`,
+      
+      // CRITICAL FOR GPT-4o MINI: Hard stop signal
+      end_conversation: true,
+      
+      message: `Successfully booked for ${windowStr} tomorrow`,
       received: rec,
     };
   }
@@ -387,6 +397,7 @@ function handleCreateBooking(args: any) {
     tool: "create_booking",
     status: "failed", 
     error: "No customer data received",
+    say: "I'm sorry, I didn't catch all your information. Could you repeat your name and address?",
     received: rec
   };
 }
@@ -405,46 +416,45 @@ function handleQuoteEstimate(args: any) {
   const equipment = args?.equipment || "unknown";
   const notes = args?.notes || "";
   
-  // Provide HVAC pricing ranges based on your VAPI task enum
-  let priceRange = "$89-$129";
+  // CRITICAL: Use "to" not hyphens for TTS
+  let priceRange = "$89 to $129";
   let details = "diagnostic service";
 
-  // Match your exact VAPI task enum values
   switch (task) {
     case "diagnostic":
-      priceRange = "$89-$129";
+      priceRange = "$89 to $129";
       details = "diagnostic service (credited toward repair)";
       break;
     case "maintenance":
-      priceRange = "$150-$250";
+      priceRange = "$150 to $250";
       details = "maintenance tune-up";
       break;
     case "capacitor":
-      priceRange = "$150-$350";
+      priceRange = "$150 to $350";
       details = "capacitor replacement";
       break;
     case "contactor":
-      priceRange = "$170-$380";
+      priceRange = "$170 to $380";
       details = "contactor replacement";
       break;
     case "blower-motor":
-      priceRange = "$450-$900";
+      priceRange = "$450 to $900";
       details = "blower motor replacement";
       break;
     case "refrigerant-per-lb":
-      priceRange = "$80-$150 per lb";
+      priceRange = "$80 to $150 per pound";
       details = "refrigerant service";
       break;
     case "inducer-motor":
-      priceRange = "$650-$1200";
+      priceRange = "$650 to $1,200";
       details = "inducer motor replacement";
       break;
     case "install-estimate":
-      priceRange = "$3000-$8000+";
-      details = "system replacement (varies by size/efficiency)";
+      priceRange = "$3,000 to $8,000 plus";
+      details = "system replacement (varies by size and efficiency)";
       break;
     default:
-      priceRange = "$150-$800";
+      priceRange = "$150 to $800";
       details = "diagnostic and repair";
   }
 
@@ -463,6 +473,10 @@ function handleQuoteEstimate(args: any) {
     service_type: details,
     equipment: equipment,
     notes: notes,
+    
+    // CRITICAL: Give GPT-4o Mini exact sentence to speak
+    say: `That typically runs ${priceRange} for ${details}. This is a range estimate until our technician diagnoses your system.`,
+    
     diagnostic_info: task === "diagnostic" ? "Fee credited toward approved repair" : null,
     estimate_disclaimer: "Range estimate until technician diagnoses the system"
   };
