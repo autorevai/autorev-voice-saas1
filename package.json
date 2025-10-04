@@ -5,7 +5,10 @@
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
-    "start": "next start"
+    "start": "next start",
+    "provision:hvac": "ts-node --transpile-only scripts/provision-hvac.ts",
+    "provision:tenant": "ts-node --transpile-only scripts/provision-tenant.ts",
+    "test:curl:booking": "node scripts/test-curl-booking.js"
   },
   "dependencies": {
     "@supabase/ssr": "^0.7.0",
@@ -13,6 +16,7 @@
     "date-fns": "^4.1.0",
     "lucide-react": "^0.544.0",
     "next": "15.5.3",
+    "node-fetch": "^3.3.2",
     "react": "19.1.0",
     "react-day-picker": "^9.11.0",
     "react-dom": "19.1.0",
