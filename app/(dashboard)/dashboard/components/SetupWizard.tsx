@@ -19,7 +19,6 @@ export default function SetupWizard({ onComplete }: SetupWizardProps) {
     serviceArea: '',
     serviceHours: '',
     phoneNumber: '',
-    forwardingNumber: '',
     googleBusinessProfile: '',
     industry: ''
   })
@@ -35,10 +34,6 @@ export default function SetupWizard({ onComplete }: SetupWizardProps) {
     }
     if (!formData.phoneNumber.trim()) {
       setError('Business phone number is required')
-      return false
-    }
-    if (!formData.forwardingNumber.trim()) {
-      setError('Forwarding number is required')
       return false
     }
     if (!formData.industry) {
@@ -108,9 +103,8 @@ export default function SetupWizard({ onComplete }: SetupWizardProps) {
   const steps = [
     { number: 1, title: 'Service Area', icon: MapPin },
     { number: 2, title: 'Business Hours', icon: Clock },
-    { number: 3, title: 'Contact Info', icon: Phone },
-    { number: 4, title: 'Forwarding Number', icon: Smartphone },
-    { number: 5, title: 'Business Profile', icon: Building }
+    { number: 3, title: 'Business Phone', icon: Phone },
+    { number: 4, title: 'Business Profile', icon: Building }
   ]
 
   if (!isOpen) {
@@ -223,8 +217,8 @@ export default function SetupWizard({ onComplete }: SetupWizardProps) {
                 <h3 className="text-sm font-medium text-green-800">Setup Complete!</h3>
                 <div className="mt-2 text-sm text-green-700">
                   <p><strong>Assistant ID:</strong> {success.assistantId}</p>
-                  <p><strong>Phone Number:</strong> {success.phoneNumber}</p>
-                  <p className="mt-1">Your AI voice agent is now ready to take calls!</p>
+                  <p><strong>Customer Phone Number:</strong> {success.phoneNumber}</p>
+                  <p className="mt-1">Give this number to customers to call. VAPI will forward calls to your business number when needed.</p>
                 </div>
               </div>
             </div>
@@ -281,33 +275,13 @@ export default function SetupWizard({ onComplete }: SetupWizardProps) {
                   placeholder="(555) 123-4567"
                 />
                 <p className="text-sm text-gray-500 mt-1">
-                  Your business phone number for customer reference
+                  Your business phone number where VAPI will forward calls when customers need to speak to a human
                 </p>
               </div>
             </div>
           )}
 
           {currentStep === 4 && (
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Forwarding Number
-                </label>
-                <input
-                  type="tel"
-                  value={formData.forwardingNumber}
-                  onChange={(e) => setFormData(prev => ({ ...prev, forwardingNumber: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="(555) 987-6543"
-                />
-                <p className="text-sm text-gray-500 mt-1">
-                  This number will receive forwarded calls from your AI agent when customers need to speak to a human
-                </p>
-              </div>
-            </div>
-          )}
-
-          {currentStep === 5 && (
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
