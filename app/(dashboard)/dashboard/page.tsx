@@ -1,5 +1,7 @@
 import { createClient } from '../../../lib/db'
 import DashboardClient from './components/DashboardClient'
+import VapiStatusCard from '../components/VapiStatusCard'
+import VapiSuccessMessage from '../components/VapiSuccessMessage'
 
 interface Call {
   id: string
@@ -12,6 +14,15 @@ interface Call {
     name: string
     phone: string
   }[] | null
+}
+
+interface Assistant {
+  id: string
+  vapi_assistant_id: string
+  vapi_number_id: string
+  name: string
+  status: string
+  settings_json: any
 }
 
 interface DashboardData {
@@ -29,6 +40,9 @@ interface DashboardData {
   bookingsTodayTrend: number
   conversionRateTrend: number
   totalBookingsTrend: number
+  // VAPI data
+  assistant?: Assistant
+  lastCallTime?: string
 }
 
 async function getDashboardData(): Promise<DashboardData> {
@@ -44,6 +58,14 @@ async function getDashboardData(): Promise<DashboardData> {
   const todayISO = today.toISOString()
 
   try {
+    // Get assistant info
+    const { data: assistant } = await db
+      .from('assistants')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .eq('status', 'active')
+      .single()
+
     // Get calls today
     const { count: callsToday } = await db
       .from('calls')
@@ -65,7 +87,6 @@ async function getDashboardData(): Promise<DashboardData> {
       .eq('tenant_id', tenantId)
 
     // Get recent calls with customer names from bookings
-    // LEFT JOIN with bookings table to get customer name if available
     const { data: recentCalls } = await db
       .from('calls')
       .select(`
@@ -80,6 +101,15 @@ async function getDashboardData(): Promise<DashboardData> {
       .eq('tenant_id', tenantId)
       .order('started_at', { ascending: false })
       .limit(20)
+
+    // Get last call time
+    const { data: lastCall } = await db
+      .from('calls')
+      .select('started_at')
+      .eq('tenant_id', tenantId)
+      .order('started_at', { ascending: false })
+      .limit(1)
+      .single()
 
     const conversionRate = callsToday && callsToday > 0 
       ? Math.round((bookingsToday || 0) / callsToday * 100) 
@@ -210,7 +240,9 @@ async function getDashboardData(): Promise<DashboardData> {
       callsTodayTrend,
       bookingsTodayTrend,
       conversionRateTrend,
-      totalBookingsTrend
+      totalBookingsTrend,
+      assistant: assistant as Assistant,
+      lastCallTime: lastCall?.started_at
     }
   } catch (error) {
     console.error('Dashboard data fetch error:', error)
@@ -240,6 +272,33 @@ export default async function DashboardPage() {
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto">
         <h1 className="text-2xl font-bold text-gray-900 mb-6">Dashboard</h1>
+        
+        {/* VAPI Status Section */}
+        {data.assistant ? (
+          <div className="mb-8">
+            <VapiStatusCard
+              phoneNumber={data.assistant.vapi_number_id}
+              isActive={data.assistant.status === 'active'}
+              callsToday={data.callsToday}
+              lastCall={data.lastCallTime}
+            />
+          </div>
+        ) : (
+          <div className="mb-8">
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
+              <h3 className="text-lg font-semibold text-yellow-800 mb-2">
+                Complete Your Setup
+              </h3>
+              <p className="text-yellow-700 mb-4">
+                Set up your AI voice agent to start taking calls automatically.
+              </p>
+              <button className="bg-yellow-600 text-white px-4 py-2 rounded-md hover:bg-yellow-700 transition-colors">
+                Configure Voice Agent
+              </button>
+            </div>
+          </div>
+        )}
+
         <DashboardClient initialData={data} />
       </div>
     </div>

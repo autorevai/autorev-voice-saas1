@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import UserMenu from './components/UserMenu'
 
 export default function DashboardLayout({
   children,
@@ -32,6 +33,9 @@ export default function DashboardLayout({
               >
                 Bookings
               </Link>
+              
+              {/* User Menu */}
+              <UserMenu />
             </div>
           </div>
         </div>
