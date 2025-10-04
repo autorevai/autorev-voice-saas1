@@ -369,7 +369,7 @@ export default function SetupWizard({ onComplete }: SetupWizardProps) {
             ) : (
               <button
                 type="submit"
-                disabled={loading || success}
+                disabled={loading || !!success}
                 className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {loading ? 'Setting up...' : success ? 'Setup Complete!' : 'Complete Setup'}
