@@ -30,9 +30,15 @@ export default function OnboardingPage() {
     setError(null)
 
     try {
+      // Auto-prepend https:// if user didn't include protocol
+      let websiteUrl = formData.website?.trim()
+      if (websiteUrl && !websiteUrl.startsWith('http')) {
+        websiteUrl = 'https://' + websiteUrl
+      }
+
       const result = await createTenant({
         businessName: formData.businessName.trim(),
-        website: formData.website?.trim() || undefined,
+        website: websiteUrl || undefined,
       })
 
       if (result.success) {
@@ -91,11 +97,11 @@ export default function OnboardingPage() {
               </label>
               <input
                 id="website"
-                type="url"
+                type="text"
                 value={formData.website}
                 onChange={(e) => setFormData(prev => ({ ...prev, website: e.target.value }))}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
-                placeholder="https://yourbusiness.com"
+                placeholder="yourbusiness.com or https://yourbusiness.com"
                 disabled={loading}
               />
             </div>

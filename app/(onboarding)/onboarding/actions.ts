@@ -1,17 +1,22 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { createClient } from '@/lib/supabase/server' // Regular client for auth
+import { createClient as createServiceClient } from '@/lib/db' // Service role for database ops
 import { revalidatePath } from 'next/cache'
 
 export async function createTenant(data: { businessName: string; website?: string }) {
+  // Use regular client for authentication
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   
   if (!user) return { success: false, error: 'Not authenticated' }
 
+  // Use service client for database operations (bypasses RLS)
+  const db = createServiceClient()
+
   try {
-    // Create tenant with minimal data
-    const { data: tenant, error: tenantError } = await supabase
+    // Create tenant with minimal data using service client
+    const { data: tenant, error: tenantError } = await db
       .from('tenants')
       .insert({
         name: data.businessName,
@@ -24,8 +29,8 @@ export async function createTenant(data: { businessName: string; website?: strin
 
     if (tenantError) return { success: false, error: tenantError.message }
 
-    // Link user to tenant
-    const { error: userError } = await supabase.from('users').upsert({
+    // Link user to tenant using service client
+    const { error: userError } = await db.from('users').upsert({
       id: user.id,
       tenant_id: tenant.id,
       email: user.email!,
@@ -34,7 +39,7 @@ export async function createTenant(data: { businessName: string; website?: strin
 
     if (userError) {
       // Clean up tenant if user creation fails
-      await supabase.from('tenants').delete().eq('id', tenant.id)
+      await db.from('tenants').delete().eq('id', tenant.id)
       return { success: false, error: userError.message }
     }
 
