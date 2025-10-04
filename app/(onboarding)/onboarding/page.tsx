@@ -32,11 +32,7 @@ export default function OnboardingPage() {
     try {
       const result = await createTenant({
         businessName: formData.businessName.trim(),
-        industry: 'Service Business', // Default - will be configured later
-        phone: '', // Will be collected in setup wizard
-        serviceArea: '', // Will be collected in setup wizard
         website: formData.website?.trim() || undefined,
-        hoursOfOperation: '' // Will be collected in setup wizard
       })
 
       if (result.success) {
