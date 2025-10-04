@@ -364,7 +364,7 @@ function handleCreateBooking(args: any) {
 
   // Success case: we have customer data
   if (args?.name || args?.phone || args?.address) {
-    // CRITICAL: Use "to" not dash for TTS (prevents "$8-11" becoming "$811")
+    // Always use "to" in windows so TTS never says "dash" or merges numbers
     const windowStr = args?.window || "8 to 11";
     
     console.info("BOOKING_SUCCESS", { 
@@ -374,19 +374,19 @@ function handleCreateBooking(args: any) {
     });
     
     return {
-      success: true,
-      tool: "create_booking",
-      status: "booked",
-      window: windowStr,
-      
-      // CRITICAL FOR GPT-4o MINI: Explicit sentence to speak
-      say: `Perfect! You're all set for ${windowStr}. We'll see you then.`,
-      
-      // CRITICAL FOR GPT-4o MINI: Hard stop signal
+      success: true,                 // <- explicit success flag
+      status: "booked",              // <- second success indicator
+      window: windowStr,             // <- human-readable window for the script below
+
+      // The exact sentence you want the agent to speak:
+      say: `You're all set. We'll see you ${windowStr}.`,
+
+      // Hard stop signal. The agent should end after speaking 'say'.
       end_conversation: true,
-      
-      message: `Successfully booked for ${windowStr} tomorrow`,
-      received: rec,
+
+      // Optional logging—keep anything else you already send:
+      tool: "create_booking",
+      received: rec
     };
   }
 
@@ -394,10 +394,9 @@ function handleCreateBooking(args: any) {
   console.error("BOOKING_FAILED_NO_DATA", { received: rec });
   return {
     success: false,
-    tool: "create_booking",
-    status: "failed", 
-    error: "No customer data received",
+    error: "slot_unavailable",
     say: "I'm sorry, I didn't catch all your information. Could you repeat your name and address?",
+    tool: "create_booking",
     received: rec
   };
 }
@@ -466,7 +465,6 @@ function handleQuoteEstimate(args: any) {
 
   return {
     success: true,
-    tool: "quote_estimate",
     status: "provided",
     task: task,
     price_range: priceRange,
@@ -474,9 +472,10 @@ function handleQuoteEstimate(args: any) {
     equipment: equipment,
     notes: notes,
     
-    // CRITICAL: Give GPT-4o Mini exact sentence to speak
-    say: `That typically runs ${priceRange} for ${details}. This is a range estimate until our technician diagnoses your system.`,
+    // The exact sentence you want the agent to speak:
+    say: `That typically runs ${priceRange}. This is a range until diagnosis.`,
     
+    tool: "quote_estimate",
     diagnostic_info: task === "diagnostic" ? "Fee credited toward approved repair" : null,
     estimate_disclaimer: "Range estimate until technician diagnoses the system"
   };
@@ -509,10 +508,14 @@ function handleHandoffSms(args: any) {
 
   return {
     success: true,
-    tool: "handoff_sms",
     status: "sent",
     phone: phone,
     message: message,
+    
+    // The exact sentence you want the agent to speak:
+    say: "I'll have our team reach out to you shortly with more details.",
+    
+    tool: "handoff_sms",
     sms_type: "handoff_request",
     note: `Handoff SMS queued for ${phone}: ${message}`
   };
