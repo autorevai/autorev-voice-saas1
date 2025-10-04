@@ -63,7 +63,7 @@ export default function SignupPage() {
         <form onSubmit={handleSignup} className="space-y-4">
           <div>
             <label htmlFor="fullName" className="block text-sm font-medium text-gray-700 mb-1">
-              Full Name
+              Your Name
             </label>
             <input
               id="fullName"
@@ -74,6 +74,7 @@ export default function SignupPage() {
               placeholder="John Doe"
               required
             />
+            <p className="mt-1 text-xs text-gray-500">We'll ask for your business name next</p>
           </div>
 
           <div>
