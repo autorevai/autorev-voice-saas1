@@ -9,6 +9,11 @@ export async function POST(req: Request) {
   try {
     const event = await req.json();
     
+    console.log('VAPI_WEBHOOK_RECEIVED', {
+      timestamp: new Date().toISOString(),
+      event: JSON.stringify(event, null, 2)
+    });
+    
     // VAPI wraps data in a "message" envelope
     const message = event?.message || event;
     const messageType = message?.type;
@@ -16,7 +21,7 @@ export async function POST(req: Request) {
     const callId = call?.id;
     
     if (!callId) {
-      console.warn('VAPI_WEBHOOK_NO_CALL_ID', { messageType });
+      console.warn('VAPI_WEBHOOK_NO_CALL_ID', { messageType, event });
       return new Response(JSON.stringify({ received: true }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' }
@@ -52,18 +57,24 @@ export async function POST(req: Request) {
               .single();
             
             if (assistant) {
-              await supabase.from('calls').insert({
+              const { error: insertError } = await supabase.from('calls').insert({
                 tenant_id: assistant.tenant_id,
+                assistant_id: assistant.id,
                 vapi_call_id: callId,
                 started_at: call?.startedAt || new Date().toISOString(),
-                outcome: 'unknown'
+                outcome: 'unknown',
+                raw_json: { message, call }
               });
               
-              console.log('VAPI_CALL_CREATED', { 
-                callId, 
-                assistantId, 
-                tenantId: assistant.tenant_id 
-              });
+              if (insertError) {
+                console.error('VAPI_CALL_INSERT_ERROR', { callId, error: insertError });
+              } else {
+                console.log('VAPI_CALL_CREATED', { 
+                  callId, 
+                  assistantId, 
+                  tenantId: assistant.tenant_id 
+                });
+              }
             } else {
               console.warn('VAPI_CALL_NO_ASSISTANT', { callId, assistantId });
             }
@@ -76,7 +87,6 @@ export async function POST(req: Request) {
       
       case 'end-of-call-report': {
         // Call ended - save duration and transcript
-        // VAPI provides timestamps and duration at message level, not call level
         const startedAt = message?.startedAt;
         const endedAt = message?.endedAt;
         const durationSec = Math.round(message?.durationSeconds || 0);
@@ -85,14 +95,23 @@ export async function POST(req: Request) {
         const summary = message?.summary || null;
         const endedReason = message?.endedReason || null;
         
+        // Determine outcome based on the call data
+        let outcome = 'unknown';
+        if (endedReason === 'assistant_ended_call') {
+          outcome = 'booked';
+        } else if (endedReason === 'customer_ended_call') {
+          outcome = 'handoff';
+        }
+        
         // Update call record with duration and transcript
         const { error } = await supabase
           .from('calls')
           .update({
             ended_at: endedAt || new Date().toISOString(),
             duration_sec: durationSec,
+            outcome: outcome,
             transcript_url: transcript ? `data:text/plain;base64,${Buffer.from(transcript).toString('base64')}` : null,
-            raw_json: { transcript, summary, endedReason }
+            raw_json: { transcript, summary, endedReason, message, call }
           })
           .eq('vapi_call_id', callId);
         
@@ -102,6 +121,7 @@ export async function POST(req: Request) {
           console.log('VAPI_CALL_ENDED', {
             callId,
             durationSec,
+            outcome,
             hasTranscript: !!transcript,
             transcriptLength: transcript?.length || 0,
             hasSummary: !!summary,
@@ -112,7 +132,7 @@ export async function POST(req: Request) {
       }
       
       case 'status-update': {
-        // Call status changed (optional - you can log this if needed)
+        // Call status changed
         console.log('VAPI_CALL_STATUS', {
           callId,
           status: message?.status

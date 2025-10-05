@@ -10,9 +10,12 @@ export async function POST(req: NextRequest) {
 
   const tool = req.headers.get('x-tool-name') || '';
   const args = await req.json().catch(() => ({}));
+  const callId = req.headers.get('x-vapi-call-id') || '';
   
   // Get tenant ID (from header or demo fallback)
   const tenantId = req.headers.get('x-tenant-id') || process.env.DEMO_TENANT_ID;
+  
+  console.log('TOOLS_API_CALL', { tool, callId, tenantId, args });
   
   if (!tenantId) {
     console.warn('No tenant_id provided, using demo tenant');
@@ -62,6 +65,16 @@ export async function POST(req: NextRequest) {
       });
     }
     
+    // Log tool result
+    await db.from('tool_results').insert({
+      call_id: callId,
+      tenant_id: finalTenantId,
+      tool_name: 'create_booking',
+      request_json: args,
+      response_json: { confirmation, booking_id: booking.id },
+      success: true
+    });
+    
     // Return success to VAPI
     return NextResponse.json({
       success: true,
@@ -81,6 +94,19 @@ export async function POST(req: NextRequest) {
     else if (serviceType.includes('repair')) priceRange = '$125-$350';
     else if (serviceType.includes('maintenance')) priceRange = '$89-$159';
     
+    // Log tool result
+    const db = createClient();
+    const finalTenantId = tenantId || '00000000-0000-0000-0000-000000000001';
+    
+    await db.from('tool_results').insert({
+      call_id: callId,
+      tenant_id: finalTenantId,
+      tool_name: 'quote_estimate',
+      request_json: args,
+      response_json: { price_range: priceRange, service_type: serviceType },
+      success: true
+    });
+    
     return NextResponse.json({
       success: true,
       price_range: priceRange,
@@ -91,8 +117,11 @@ export async function POST(req: NextRequest) {
   if (tool === 'handoff_sms') {
     // Log handoff request
     const db = createClient();
+    const finalTenantId = tenantId || '00000000-0000-0000-0000-000000000001';
+    
     await db.from('tool_results').insert({
-      call_id: null, // Will be updated by webhook
+      call_id: callId,
+      tenant_id: finalTenantId,
       tool_name: 'handoff_sms',
       request_json: args,
       response_json: { sms_type: 'handoff_request' },
@@ -108,8 +137,11 @@ export async function POST(req: NextRequest) {
   if (tool === 'update_crm_note') {
     // Log CRM note
     const db = createClient();
+    const finalTenantId = tenantId || '00000000-0000-0000-0000-000000000001';
+    
     await db.from('tool_results').insert({
-      call_id: null,
+      call_id: callId,
+      tenant_id: finalTenantId,
       tool_name: 'update_crm_note',
       request_json: args,
       response_json: { note_saved: true },
