@@ -31,8 +31,8 @@ async function checkPhoneAssistantStatus() {
     console.log(`   ID: ${assistant.id}`)
     console.log(`   Name: ${assistant.name}`)
     console.log(`   Status: Active`)
-    console.log(`   Model: ${assistant.model?.name}`)
-    console.log(`   Provider: ${assistant.model?.provider}`)
+    console.log(`   Model: ${assistant.model?.model || 'N/A'}`)
+    console.log(`   Provider: ${assistant.model?.provider || 'N/A'}`)
     console.log(`   Tools: ${assistant.tools?.length || 0} tools`)
     console.log('')
     
