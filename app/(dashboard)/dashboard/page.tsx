@@ -8,46 +8,39 @@ interface Call {
   started_at: string
   ended_at: string | null
   duration_sec: number | null
-  outcome: string | null
-  bookings?: {
-    name: string
-    phone: string
-  }[] | null
+  outcome: string
+  bookings?: { name: string, phone: string }[] | null
 }
 
 interface Assistant {
   id: string
   vapi_assistant_id: string
-  vapi_number_id: string
+  vapi_number_id: string | null
   name: string
   status: string
-  settings_json: any
 }
 
 interface DashboardData {
   callsToday: number
   bookingsToday: number
   totalBookings: number
-  conversionRate: number
+  conversionRate: string
   recentCalls: Call[]
-  // Chart data
-  callsByDay: { date: string; calls: number }[]
-  conversionFunnel: { name: string; value: number; percentage: number }[]
-  callsByHour: { hour: string; calls: number }[]
-  // Trend data
+  callsByDay: any[]
+  conversionFunnel: any[]
+  callsByHour: any[]
   callsTodayTrend: number
   bookingsTodayTrend: number
   conversionRateTrend: number
   totalBookingsTrend: number
-  // VAPI data
-  assistant?: Assistant
+  assistant: Assistant | null
   lastCallTime?: string
   // Setup status
   setupCompleted: boolean
 }
 
 async function getDashboardData(): Promise<DashboardData> {
-  const db = createClient()
+  const db = await createClient()
   
   try {
     // Get the authenticated user's tenant
@@ -80,22 +73,21 @@ async function getDashboardData(): Promise<DashboardData> {
     
     const tenantId = userRecord.tenant_id
 
-  // Get tenant setup status
-  const { data: tenant, error: tenantError } = await db
-    .from('tenants')
-    .select('setup_completed')
-    .eq('id', tenantId)
-    .single()
-  
-  if (tenantError) {
-    console.error('Error fetching tenant:', tenantError)
-  }
+    // Get tenant setup status
+    const { data: tenant, error: tenantError } = await db
+      .from('tenants')
+      .select('setup_completed')
+      .eq('id', tenantId)
+      .single()
+    
+    if (tenantError) {
+      console.error('Error fetching tenant:', tenantError)
+    }
 
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const todayISO = today.toISOString()
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const todayISO = today.toISOString()
 
-  try {
     // Get assistant info (may not exist if setup not completed)
     const { data: assistant, error: assistantError } = await db
       .from('assistants')
@@ -128,23 +120,49 @@ async function getDashboardData(): Promise<DashboardData> {
       .select('*', { count: 'exact', head: true })
       .eq('tenant_id', tenantId)
 
+    // Calculate conversion rate
+    const conversionRate = callsToday && callsToday > 0 
+      ? ((bookingsToday || 0) / callsToday * 100).toFixed(1)
+      : '0.0'
+
     // Get recent calls with customer names from bookings
     const { data: recentCalls } = await db
       .from('calls')
       .select(`
         id, 
-        vapi_call_id, 
-        started_at, 
-        ended_at, 
-        duration_sec, 
+        vapi_call_id,
+        started_at,
+        ended_at,
+        duration_sec,
         outcome,
-        bookings!left(name, phone)
+        bookings(name, phone)
       `)
       .eq('tenant_id', tenantId)
       .order('started_at', { ascending: false })
       .limit(20)
 
-    // Get last call time
+    // Get calls by day for the last 7 days
+    const { data: callsByDay } = await db
+      .from('calls')
+      .select('started_at')
+      .eq('tenant_id', tenantId)
+      .gte('started_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
+      .order('started_at', { ascending: true })
+
+    // Get conversion funnel data
+    const { data: conversionFunnel } = await db
+      .from('calls')
+      .select('outcome')
+      .eq('tenant_id', tenantId)
+
+    // Get calls by hour
+    const { data: callsByHour } = await db
+      .from('calls')
+      .select('started_at')
+      .eq('tenant_id', tenantId)
+      .gte('started_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
+
+    // Get last call for last call time
     const { data: lastCall } = await db
       .from('calls')
       .select('started_at')
@@ -153,120 +171,31 @@ async function getDashboardData(): Promise<DashboardData> {
       .limit(1)
       .single()
 
-    const conversionRate = callsToday && callsToday > 0 
-      ? Math.round((bookingsToday || 0) / callsToday * 100) 
-      : 0
+    // Process calls by day data
+    const callsByDayMap = new Map()
+    callsByDay?.forEach((call: any) => {
+      const date = new Date(call.started_at).toISOString().split('T')[0]
+      callsByDayMap.set(date, (callsByDayMap.get(date) || 0) + 1)
+    })
 
-    // Get calls by day for last 7 days
-    const sevenDaysAgo = new Date()
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
-    sevenDaysAgo.setHours(0, 0, 0, 0)
-
-    const { data: callsByDayData } = await db
-      .from('calls')
-      .select('started_at')
-      .eq('tenant_id', tenantId)
-      .gte('started_at', sevenDaysAgo.toISOString())
-      .order('started_at', { ascending: true })
-
-    // Process calls by day
-    const callsByDayMap = new Map<string, number>()
-    const today = new Date()
-    for (let i = 6; i >= 0; i--) {
-      const date = new Date(today)
-      date.setDate(date.getDate() - i)
-      const dateStr = date.toISOString().split('T')[0]
-      callsByDayMap.set(dateStr, 0)
+    // Process conversion funnel data
+    const funnelData = {
+      total: conversionFunnel?.length || 0,
+      booked: conversionFunnel?.filter((call: any) => call.outcome === 'booked').length || 0,
+      handoff: conversionFunnel?.filter((call: any) => call.outcome === 'handoff').length || 0,
+      unknown: conversionFunnel?.filter((call: any) => call.outcome === 'unknown').length || 0
     }
 
-    callsByDayData?.forEach(call => {
-      const dateStr = call.started_at.split('T')[0]
-      if (callsByDayMap.has(dateStr)) {
-        callsByDayMap.set(dateStr, (callsByDayMap.get(dateStr) || 0) + 1)
-      }
-    })
-
-    const callsByDay = Array.from(callsByDayMap.entries()).map(([date, calls]) => ({
-      date: new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-      calls
-    }))
-
-    // Get conversion funnel data
-    const { data: allCalls } = await db
-      .from('calls')
-      .select('outcome')
-      .eq('tenant_id', tenantId)
-
-    const totalCalls = allCalls?.length || 0
-    const bookedCalls = allCalls?.filter(call => call.outcome === 'booked').length || 0
-    const handoffCalls = allCalls?.filter(call => call.outcome === 'handoff').length || 0
-    const unknownCalls = allCalls?.filter(call => call.outcome === 'unknown' || !call.outcome).length || 0
-
-    const conversionFunnel = [
-      { name: 'Total Calls', value: totalCalls, percentage: 100 },
-      { name: 'Booked', value: bookedCalls, percentage: totalCalls > 0 ? Math.round((bookedCalls / totalCalls) * 100) : 0 },
-      { name: 'Handoff', value: handoffCalls, percentage: totalCalls > 0 ? Math.round((handoffCalls / totalCalls) * 100) : 0 },
-      { name: 'Unknown', value: unknownCalls, percentage: totalCalls > 0 ? Math.round((unknownCalls / totalCalls) * 100) : 0 }
-    ]
-
-    // Get calls by hour for today
-    const todayStart = new Date()
-    todayStart.setHours(0, 0, 0, 0)
-    const todayEnd = new Date()
-    todayEnd.setHours(23, 59, 59, 999)
-
-    const { data: callsByHourData } = await db
-      .from('calls')
-      .select('started_at')
-      .eq('tenant_id', tenantId)
-      .gte('started_at', todayStart.toISOString())
-      .lte('started_at', todayEnd.toISOString())
-
-    // Process calls by hour
-    const callsByHourMap = new Map<string, number>()
-    callsByHourData?.forEach(call => {
+    // Process calls by hour data
+    const callsByHourMap = new Map()
+    callsByHour?.forEach((call: any) => {
       const hour = new Date(call.started_at).getHours()
-      const hourStr = hour === 0 ? '12am' : hour < 12 ? `${hour}am` : hour === 12 ? '12pm' : `${hour - 12}pm`
-      callsByHourMap.set(hourStr, (callsByHourMap.get(hourStr) || 0) + 1)
+      callsByHourMap.set(hour, (callsByHourMap.get(hour) || 0) + 1)
     })
 
-    const callsByHour = Array.from(callsByHourMap.entries())
-      .map(([hour, calls]) => ({ hour, calls }))
-      .sort((a, b) => {
-        const aHour = a.hour.includes('am') ? parseInt(a.hour) : parseInt(a.hour) + 12
-        const bHour = b.hour.includes('am') ? parseInt(b.hour) : parseInt(b.hour) + 12
-        return aHour - bHour
-      })
-
-    // Calculate trends (simplified - comparing with yesterday)
-    const yesterday = new Date()
-    yesterday.setDate(yesterday.getDate() - 1)
-    yesterday.setHours(0, 0, 0, 0)
-    const yesterdayEnd = new Date(yesterday)
-    yesterdayEnd.setHours(23, 59, 59, 999)
-
-    const { count: callsYesterday } = await db
-      .from('calls')
-      .select('*', { count: 'exact', head: true })
-      .eq('tenant_id', tenantId)
-      .gte('started_at', yesterday.toISOString())
-      .lte('started_at', yesterdayEnd.toISOString())
-
-    const { count: bookingsYesterday } = await db
-      .from('bookings')
-      .select('*', { count: 'exact', head: true })
-      .eq('tenant_id', tenantId)
-      .gte('created_at', yesterday.toISOString())
-      .lte('created_at', yesterdayEnd.toISOString())
-
-    const callsTodayTrend = callsYesterday && callsYesterday > 0 
-      ? Math.round(((callsToday || 0) - callsYesterday) / callsYesterday * 100)
-      : 0
-
-    const bookingsTodayTrend = bookingsYesterday && bookingsYesterday > 0
-      ? Math.round(((bookingsToday || 0) - bookingsYesterday) / bookingsYesterday * 100)
-      : 0
-
+    // Calculate trends (simplified for now)
+    const callsTodayTrend = 0 // Simplified for now
+    const bookingsTodayTrend = 0 // Simplified for now
     const conversionRateTrend = 0 // Simplified for now
     const totalBookingsTrend = 0 // Simplified for now
 
@@ -276,9 +205,9 @@ async function getDashboardData(): Promise<DashboardData> {
       totalBookings: totalBookings || 0,
       conversionRate,
       recentCalls: recentCalls || [],
-      callsByDay,
-      conversionFunnel,
-      callsByHour,
+      callsByDay: callsByDay || [],
+      conversionFunnel: conversionFunnel || [],
+      callsByHour: callsByHour || [],
       callsTodayTrend,
       bookingsTodayTrend,
       conversionRateTrend,
@@ -319,49 +248,67 @@ export default async function DashboardPage() {
         {/* Setup Success Banner */}
         {data.assistant && (
           <div className="mb-8">
-            <div className="bg-green-50 border border-green-200 rounded-lg p-6">
-              <div className="flex items-center">
-                <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center mr-3">
-                  <svg className="w-5 h-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                </div>
+            <div className="bg-gradient-to-r from-green-50 to-blue-50 border border-green-200 rounded-lg p-6">
+              <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-green-900 font-semibold mb-1">
+                  <h3 className="text-lg font-semibold text-green-800 mb-2">
                     Setup Complete! 🎉
                   </h3>
+                  <p className="text-green-700 mb-4">
+                    Your AI receptionist is live and ready to take calls.
+                  </p>
                   {data.assistant.vapi_number_id ? (
-                    <p className="text-green-800">
-                      Your AI receptionist is live at <strong className="font-mono">{data.assistant.vapi_number_id}</strong>
-                    </p>
+                    <div className="flex items-center space-x-4">
+                      <div className="text-2xl font-bold text-green-800">
+                        {data.assistant.vapi_number_id}
+                      </div>
+                      <button
+                        onClick={() => data.assistant?.vapi_number_id && navigator.clipboard.writeText(data.assistant.vapi_number_id)}
+                        className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition-colors"
+                      >
+                        Copy Number
+                      </button>
+                      <a
+                        href={`tel:${data.assistant.vapi_number_id}`}
+                        className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
+                      >
+                        Test Call
+                      </a>
+                    </div>
                   ) : (
-                    <p className="text-green-800">
-                      Your AI assistant is ready. <a href="https://dashboard.vapi.ai/phone-numbers" target="_blank" className="underline hover:text-green-900">Add a phone number</a> to start taking calls.
-                    </p>
+                    <div className="text-yellow-700">
+                      <p>Phone number provisioning in progress. Please check back in a few minutes.</p>
+                      <p className="text-sm mt-2">If this persists, you may need to add a phone number manually in the VAPI dashboard.</p>
+                    </div>
                   )}
                 </div>
               </div>
             </div>
           </div>
         )}
-        
-        {/* Conditional Status Section */}
+
+        {/* Setup Banner - Show when setup is not completed */}
         {!data.setupCompleted ? (
-          // Setup Banner - Show when setup is NOT completed
           <div className="mb-8">
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
-              <h3 className="text-lg font-semibold text-yellow-800 mb-2">
-                Complete Your Setup
-              </h3>
-              <p className="text-yellow-700 mb-4">
-                Set up your AI voice agent to start taking calls automatically.
-              </p>
-              <a 
-                href="/setup"
-                className="bg-yellow-600 text-white px-4 py-2 rounded-md hover:bg-yellow-700 transition-colors inline-block"
-              >
-                Configure Voice Agent
-              </a>
+            <div className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold text-blue-800 mb-2">
+                    Complete Your Setup
+                  </h3>
+                  <p className="text-blue-700 mb-4">
+                    Configure your AI voice receptionist to start taking calls.
+                  </p>
+                </div>
+                <div>
+                  <a 
+                    href="/setup"
+                    className="bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700 transition-colors inline-block"
+                  >
+                    Configure Voice Agent
+                  </a>
+                </div>
+              </div>
             </div>
           </div>
         ) : data.assistant && data.assistant.vapi_number_id && data.assistant.vapi_assistant_id ? (
