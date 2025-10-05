@@ -46,10 +46,11 @@ async function checkPhoneAssistantStatus() {
     }
     
     // Check if assistant is published/active
-    if (assistant.status === 'published') {
+    const assistantStatus = (assistant as any).status || 'unknown'
+    if (assistantStatus === 'published') {
       console.log('✅ Assistant is published and active')
     } else {
-      console.log(`⚠️  Assistant status: ${assistant.status}`)
+      console.log(`⚠️  Assistant status: ${assistantStatus}`)
       console.log('   The assistant needs to be published to receive calls')
     }
     
