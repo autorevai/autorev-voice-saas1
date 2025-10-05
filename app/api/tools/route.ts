@@ -10,7 +10,11 @@ export async function POST(req: NextRequest) {
 
   const tool = req.headers.get('x-tool-name') || '';
   const args = await req.json().catch(() => ({}));
-  const callId = req.headers.get('x-vapi-call-id') || '';
+  
+  // Extract call ID from VAPI message format or headers
+  const callId = req.headers.get('x-vapi-call-id') || 
+                 args?.message?.call?.id || 
+                 args?.call?.id || '';
   
   // Get tenant ID (from header or demo fallback)
   const tenantId = req.headers.get('x-tenant-id') || process.env.DEMO_TENANT_ID;
@@ -30,29 +34,32 @@ export async function POST(req: NextRequest) {
     // Use fallback tenant ID if none provided
     const finalTenantId = tenantId || '00000000-0000-0000-0000-000000000001';
     
+    // Extract data from VAPI message format
+    const bookingData = extractBookingData(args);
+    
     // Generate confirmation code
     const confirmation = generateConfirmationCode();
     
     // Parse preferred time into actual datetime
-    const startTime = parsePreferredTime(args.preferred_time);
+    const startTime = parsePreferredTime(bookingData.preferred_time);
     
     // Save to database
     const { data: booking, error } = await db.from('bookings').insert({
       tenant_id: finalTenantId,
       confirmation: confirmation,
-      window_text: args.preferred_time || 'Next available',
+      window_text: bookingData.preferred_time || 'Next available',
       start_ts: startTime,
       duration_min: 90, // Default service duration
-      name: args.name,
-      phone: args.phone,
-      email: args.email || null,
-      address: args.address,
-      city: args.city || null,
-      state: args.state || null,
-      zip: args.zip || null,
-      summary: args.service_type,
-      equipment: args.equipment_info || null,
-      priority: args.service_type?.toLowerCase().includes('emergency') ? 'urgent' : 'standard',
+      name: bookingData.name,
+      phone: bookingData.phone,
+      email: bookingData.email || null,
+      address: bookingData.address,
+      city: bookingData.city || null,
+      state: bookingData.state || null,
+      zip: bookingData.zip || null,
+      summary: bookingData.service_type,
+      equipment: bookingData.equipment_info || null,
+      priority: bookingData.service_type?.toLowerCase().includes('emergency') ? 'urgent' : 'standard',
       source: 'voice_call'
     }).select().single();
     
@@ -149,7 +156,7 @@ export async function POST(req: NextRequest) {
     });
     
     return NextResponse.json({
-      success: true,
+    success: true,
       say: "I've made a note of that. Is there anything else I can help you with?"
     });
   }
@@ -178,4 +185,21 @@ function parsePreferredTime(timeStr: string): string {
   
   // TODO: Use a proper date parsing library for production
   return tomorrow.toISOString();
+}
+
+function extractBookingData(args: any): any {
+  // Handle VAPI message format where data is nested in message.toolCalls
+  if (args?.message?.toolCalls && Array.isArray(args.message.toolCalls)) {
+    // Find the create_booking tool call
+    const bookingCall = args.message.toolCalls.find((call: any) => 
+      call.function?.name === 'create_booking' || call.toolCallId === 'create_booking'
+    );
+    
+    if (bookingCall?.function?.parameters) {
+      return bookingCall.function.parameters;
+    }
+  }
+  
+  // Fallback to direct args (for testing)
+  return args;
 }
