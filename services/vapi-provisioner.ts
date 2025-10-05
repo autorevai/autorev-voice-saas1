@@ -88,7 +88,7 @@ export async function provisionVapiAssistant(
       }
     });
 
-            // 5. Try to Purchase Phone Number
+            // 5. Try to Purchase Phone Number (may fail due to rate limits)
             let phoneNumber = null;
             let phoneProvisioningFailed = false;
             
@@ -98,10 +98,11 @@ export async function provisionVapiAssistant(
                 assistantId: assistant.id
               });
               phoneNumber = phone.number;
-            } catch (phoneError) {
-              console.error('Phone provisioning failed:', phoneError);
+              console.log('✅ Phone provisioned successfully:', phoneNumber);
+            } catch (phoneError: any) {
+              console.warn('⚠️  Phone provisioning failed:', phoneError.message);
               phoneProvisioningFailed = true;
-              // Continue without phone - user can add manually later
+              // Continue without phone - not critical for assistant functionality
             }
 
             return {

@@ -290,6 +290,35 @@ export default async function DashboardPage() {
       <div className="max-w-7xl mx-auto">
         <h1 className="text-2xl font-bold text-gray-900 mb-6">Dashboard</h1>
         
+        {/* Setup Success Banner */}
+        {data.assistant && (
+          <div className="mb-8">
+            <div className="bg-green-50 border border-green-200 rounded-lg p-6">
+              <div className="flex items-center">
+                <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center mr-3">
+                  <svg className="w-5 h-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-green-900 font-semibold mb-1">
+                    Setup Complete! 🎉
+                  </h3>
+                  {data.assistant.vapi_number_id ? (
+                    <p className="text-green-800">
+                      Your AI receptionist is live at <strong className="font-mono">{data.assistant.vapi_number_id}</strong>
+                    </p>
+                  ) : (
+                    <p className="text-green-800">
+                      Your AI assistant is ready. <a href="https://dashboard.vapi.ai/phone-numbers" target="_blank" className="underline hover:text-green-900">Add a phone number</a> to start taking calls.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        
         {/* Conditional Status Section */}
         {!data.setupCompleted ? (
           // Setup Banner - Show when setup is NOT completed

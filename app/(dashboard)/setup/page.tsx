@@ -61,19 +61,10 @@ export default function SetupPage() {
         throw new Error('Business phone number is required')
       }
 
-      // Simulate progress
+      // Real progress updates
       setProgressText('Creating your AI receptionist...')
-      setProgress(33)
-      await new Promise(resolve => setTimeout(resolve, 1000))
-
-      setProgressText('Generating custom playbook...')
-      setProgress(66)
-      await new Promise(resolve => setTimeout(resolve, 1000))
-
-      setProgressText('Provisioning phone number...')
-      setProgress(100)
-      await new Promise(resolve => setTimeout(resolve, 1000))
-
+      setProgress(25)
+      
       const response = await fetch('/api/provision', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -83,17 +74,30 @@ export default function SetupPage() {
         })
       })
 
+      setProgressText('Finalizing setup...')
+      setProgress(75)
+
       const data = await response.json()
 
       if (!response.ok) {
         throw new Error(data.error || 'Provisioning failed')
       }
 
+      setProgressText('Complete!')
+      setProgress(100)
+
+      // Store result
       setResult({ 
         phoneNumber: data.phoneNumber || null,
         assistantId: data.assistantId,
         phoneProvisioningFailed: data.phoneProvisioningFailed || false
       })
+
+      // Auto-redirect after 3 seconds
+      setTimeout(() => {
+        router.push('/dashboard?setup=complete')
+        router.refresh()
+      }, 3000)
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -411,7 +415,7 @@ export default function SetupPage() {
               <p className="text-gray-600">
                 {result.phoneProvisioningFailed 
                   ? 'Add a phone number to start taking calls' 
-                  : 'Your voice assistant is ready to take calls'}
+                  : 'Redirecting to dashboard...'}
               </p>
             </div>
 
