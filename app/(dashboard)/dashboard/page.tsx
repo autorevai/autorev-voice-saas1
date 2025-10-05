@@ -25,7 +25,7 @@ interface DashboardData {
   callsToday: number
   bookingsToday: number
   totalBookings: number
-  conversionRate: string
+  conversionRate: number
   recentCalls: Call[]
   callsByDay: any[]
   conversionFunnel: any[]
@@ -123,8 +123,8 @@ async function getDashboardData(): Promise<DashboardData> {
 
     // Calculate conversion rate
     const conversionRate = callsToday && callsToday > 0 
-      ? ((bookingsToday || 0) / callsToday * 100).toFixed(1)
-      : '0.0'
+      ? Math.round(((bookingsToday || 0) / callsToday * 100) * 10) / 10
+      : 0
 
     // Get recent calls with customer names from bookings
     const { data: recentCalls } = await db
