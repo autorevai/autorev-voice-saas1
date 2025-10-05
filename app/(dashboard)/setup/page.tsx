@@ -387,50 +387,88 @@ export default function SetupPage() {
   // Success Screen
   if (result) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-100 p-8">
+      <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50 p-8">
         <div className="max-w-2xl mx-auto">
-          <div className="text-center mb-8">
-            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Check className="w-8 h-8 text-green-600" />
+          <div className="bg-white rounded-lg shadow-xl p-8">
+            {/* Success Header */}
+            <div className="text-center mb-8">
+              <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-10 h-10 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                Your AI Receptionist is Live!
+              </h1>
+              <p className="text-gray-600">
+                Your voice assistant is ready to take calls
+              </p>
             </div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-4">AI Receptionist Ready!</h1>
-            <p className="text-lg text-gray-600">Your AI receptionist is now live and ready to take calls</p>
-          </div>
 
-          <div className="p-8 bg-white rounded-lg border border-gray-200">
-            <div className="space-y-6">
-              <div className="text-center">
-                <h3 className="text-lg font-semibold mb-4">Customer Phone Number</h3>
-                <div className="text-4xl font-mono font-bold text-blue-600 mb-4">
+            {/* Phone Number Display */}
+            <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg p-6 mb-6">
+              <p className="text-white text-sm font-medium mb-2">Customer Phone Number</p>
+              <div className="flex items-center justify-between">
+                <p className="text-white text-3xl font-bold font-mono">
                   {result.phoneNumber}
-                </div>
-                <button 
-                  onClick={copyPhoneNumber} 
-                  className="flex items-center mx-auto px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+                </p>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(result.phoneNumber);
+                    // Show toast or feedback
+                  }}
+                  className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg transition-colors"
                 >
-                  <Copy className="w-4 h-4 mr-2" />
-                  Copy Number
+                  Copy
                 </button>
               </div>
+            </div>
 
-              <div className="border-t border-gray-200 pt-6">
-                <div className="space-y-4">
-                  <h4 className="font-semibold">Next Steps:</h4>
-                  <ul className="space-y-2 text-sm text-gray-600">
-                    <li>• Add this number to your website and business cards</li>
-                    <li>• Monitor calls in real-time on your dashboard</li>
-                    <li>• Check the "Bookings" tab to see scheduled appointments</li>
-                    <li>• Customize your AI's responses in settings</li>
-                  </ul>
-                </div>
-              </div>
-
-              <button 
+            {/* Action Buttons */}
+            <div className="space-y-3 mb-6">
+              <a
+                href={`tel:${result.phoneNumber}`}
+                className="block w-full bg-green-600 hover:bg-green-700 text-white text-center py-3 px-4 rounded-lg font-medium transition-colors"
+              >
+                Test Call Now
+              </a>
+              
+              <button
                 onClick={() => router.push('/dashboard')}
-                className="w-full px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                className="block w-full bg-blue-600 hover:bg-blue-700 text-white text-center py-3 px-4 rounded-lg font-medium transition-colors"
               >
                 Go to Dashboard
               </button>
+            </div>
+
+            {/* Quick Tips */}
+            <div className="bg-gray-50 rounded-lg p-4">
+              <h3 className="font-semibold text-gray-900 mb-3">Next Steps:</h3>
+              <ul className="space-y-2 text-sm text-gray-700">
+                <li className="flex items-start">
+                  <span className="text-green-600 mr-2">✓</span>
+                  <span>Add this number to your website and business cards</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="text-green-600 mr-2">✓</span>
+                  <span>Test the assistant by calling and booking an appointment</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="text-green-600 mr-2">✓</span>
+                  <span>Check the dashboard to see calls and bookings in real-time</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="text-green-600 mr-2">✓</span>
+                  <span>Share the number with customers - your AI is ready!</span>
+                </li>
+              </ul>
+            </div>
+
+            {/* Assistant Details */}
+            <div className="mt-6 pt-6 border-t border-gray-200">
+              <p className="text-xs text-gray-500 text-center">
+                Assistant ID: {result.assistantId}
+              </p>
             </div>
           </div>
         </div>

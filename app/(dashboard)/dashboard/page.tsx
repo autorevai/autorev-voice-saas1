@@ -1,7 +1,6 @@
 import { createClient } from '../../../lib/db'
 import DashboardClient from './components/DashboardClient'
-import VapiStatusCard from '../components/VapiStatusCard'
-import VapiSuccessMessage from '../components/VapiSuccessMessage'
+import PhoneNumberDisplay from './components/PhoneNumberDisplay'
 
 interface Call {
   id: string
@@ -43,6 +42,8 @@ interface DashboardData {
   // VAPI data
   assistant?: Assistant
   lastCallTime?: string
+  // Setup status
+  setupCompleted: boolean
 }
 
 async function getDashboardData(): Promise<DashboardData> {
@@ -52,6 +53,13 @@ async function getDashboardData(): Promise<DashboardData> {
   if (!tenantId) {
     throw new Error('DEMO_TENANT_ID not configured')
   }
+
+  // Get tenant setup status
+  const { data: tenant } = await db
+    .from('tenants')
+    .select('setup_completed')
+    .eq('id', tenantId)
+    .single()
 
   const today = new Date()
   today.setHours(0, 0, 0, 0)
@@ -242,7 +250,8 @@ async function getDashboardData(): Promise<DashboardData> {
       conversionRateTrend,
       totalBookingsTrend,
       assistant: assistant as Assistant,
-      lastCallTime: lastCall?.started_at
+      lastCallTime: lastCall?.started_at,
+      setupCompleted: tenant?.setup_completed || false
     }
   } catch (error) {
     console.error('Dashboard data fetch error:', error)
@@ -273,17 +282,9 @@ export default async function DashboardPage() {
       <div className="max-w-7xl mx-auto">
         <h1 className="text-2xl font-bold text-gray-900 mb-6">Dashboard</h1>
         
-        {/* VAPI Status Section */}
-        {data.assistant ? (
-          <div className="mb-8">
-            <VapiStatusCard
-              phoneNumber={data.assistant.vapi_number_id}
-              isActive={data.assistant.status === 'active'}
-              callsToday={data.callsToday}
-              lastCall={data.lastCallTime}
-            />
-          </div>
-        ) : (
+        {/* Conditional Status Section */}
+        {!data.setupCompleted ? (
+          // Setup Banner - Show when setup is NOT completed
           <div className="mb-8">
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
               <h3 className="text-lg font-semibold text-yellow-800 mb-2">
@@ -297,6 +298,30 @@ export default async function DashboardPage() {
                 className="bg-yellow-600 text-white px-4 py-2 rounded-md hover:bg-yellow-700 transition-colors inline-block"
               >
                 Configure Voice Agent
+              </a>
+            </div>
+          </div>
+        ) : data.assistant ? (
+          // Success Display - Show when setup IS completed
+          <PhoneNumberDisplay 
+            phoneNumber={data.assistant.vapi_number_id}
+            assistantId={data.assistant.vapi_assistant_id}
+          />
+        ) : (
+          // Fallback - No assistant found
+          <div className="mb-8">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+              <h3 className="text-lg font-semibold text-red-800 mb-2">
+                Setup Error
+              </h3>
+              <p className="text-red-700 mb-4">
+                Your setup is marked as completed but no assistant was found. Please contact support.
+              </p>
+              <a 
+                href="/setup"
+                className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 transition-colors inline-block"
+              >
+                Retry Setup
               </a>
             </div>
           </div>
