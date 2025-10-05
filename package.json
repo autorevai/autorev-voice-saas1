@@ -9,7 +9,9 @@
     "start": "next start",
     "provision:hvac": "ts-node --transpile-only scripts/provision-hvac.ts",
     "provision:tenant": "ts-node --transpile-only scripts/provision-tenant.ts",
-    "test:curl:booking": "node scripts/test-curl-booking.js"
+    "test:curl:booking": "node scripts/test-curl-booking.js",
+    "cleanup:phones": "npx tsx scripts/cleanup-phone-numbers.ts",
+    "list:phones": "npx tsx scripts/list-phone-numbers.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.7.0",
