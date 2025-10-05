@@ -55,34 +55,12 @@ export async function POST(req: NextRequest) {
 
     if (assistantError) throw assistantError;
 
-    // 6. Update tenant
+    // 6. Update tenant (simplified - only essential fields)
     const { error: tenantError } = await db.from('tenants').update({
-      industry: profile.industry,
-      service_area: profile.serviceArea,
-      business_hours: profile.businessHours,
-      emergency_keywords: profile.emergencyKeywords,
-      routing_config: { ...profile.routingConfig, businessPhone },
       setup_completed: true
     }).eq('id', userRecord.tenant_id);
 
     if (tenantError) throw tenantError;
-
-    // 7. Initialize plan period (Starter plan = 60 minutes)
-    const today = new Date();
-    const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-    
-    await db.from('tenant_plans').insert({
-      tenant_id: userRecord.tenant_id,
-      plan_code: 'starter'
-    });
-
-    await db.from('plan_periods').insert({
-      tenant_id: userRecord.tenant_id,
-      period_start: today.toISOString().split('T')[0],
-      period_end: nextMonth.toISOString().split('T')[0],
-      minutes_included: 60,
-      status: 'active'
-    });
 
     return NextResponse.json({
       success: true,
