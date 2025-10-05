@@ -1,71 +1,83 @@
-import { config } from 'dotenv'
-import { VapiClient } from '@vapi-ai/server-sdk'
 import { createClient } from '../lib/db'
+import { config } from 'dotenv'
 
-// Load environment variables
 config({ path: '.env.local' })
 
 async function cleanupTestData() {
-  const vapi = new VapiClient({ token: process.env.VAPI_API_KEY! })
+  console.log('🧹 Cleaning up test data...')
+  
   const db = createClient()
   
   try {
-    console.log('🧹 Cleaning up test data...')
-    console.log('=' .repeat(50))
-    
-    // 1. Delete test phone numbers
-    console.log('📞 Deleting test phone numbers...')
-    const phones = await vapi.phoneNumbers.list()
-    const testPhones = phones.filter(p => 
-      p.name?.includes('test-hvac-company') || 
-      p.name?.includes('test-phone')
-    )
-    
-    for (const phone of testPhones) {
-      try {
-        await vapi.phoneNumbers.delete(phone.id)
-        console.log(`   ✅ Deleted phone: ${phone.number} (${phone.name})`)
-      } catch (error: any) {
-        console.log(`   ⚠️  Could not delete phone ${phone.id}: ${error.message}`)
-      }
-    }
-    
-    // 2. Delete test assistants
-    console.log('🤖 Deleting test assistants...')
-    const assistants = await vapi.assistants.list()
-    const testAssistants = assistants.filter(a => 
-      a.name?.includes('Test HVAC Company') ||
-      a.name?.includes('test hvac')
-    )
-    
-    for (const assistant of testAssistants) {
-      try {
-        await vapi.assistants.delete(assistant.id)
-        console.log(`   ✅ Deleted assistant: ${assistant.name} (${assistant.id})`)
-      } catch (error: any) {
-        console.log(`   ⚠️  Could not delete assistant ${assistant.id}: ${error.message}`)
-      }
-    }
-    
-    // 3. Clean up database assistants
-    console.log('🗄️  Cleaning up database assistants...')
-    const { error: deleteError } = await db
+    // Delete test assistants
+    console.log('🗑️ Deleting test assistants...')
+    const { error: assistantError } = await db
       .from('assistants')
       .delete()
-      .like('name', '%test%')
+      .like('name', '%Test%')
     
-    if (deleteError) {
-      console.log(`   ⚠️  Database cleanup error: ${deleteError.message}`)
+    if (assistantError) {
+      console.error('❌ Error deleting assistants:', assistantError)
     } else {
-      console.log('   ✅ Deleted test assistants from database')
+      console.log('✅ Test assistants deleted')
     }
     
-    console.log('')
-    console.log('🎉 Cleanup complete!')
-    console.log('   Ready for fresh test of the complete flow')
+    // Delete test tenants
+    console.log('🗑️ Deleting test tenants...')
+    const { error: tenantError } = await db
+      .from('tenants')
+      .delete()
+      .like('name', '%Test%')
+    
+    if (tenantError) {
+      console.error('❌ Error deleting tenants:', tenantError)
+    } else {
+      console.log('✅ Test tenants deleted')
+    }
+    
+    // Delete test users
+    console.log('🗑️ Deleting test users...')
+    const { error: userError } = await db
+      .from('users')
+      .delete()
+      .like('email', '%test%')
+    
+    if (userError) {
+      console.error('❌ Error deleting users:', userError)
+    } else {
+      console.log('✅ Test users deleted')
+    }
+    
+    // Delete test calls
+    console.log('🗑️ Deleting test calls...')
+    const { error: callError } = await db
+      .from('calls')
+      .delete()
+      .like('vapi_call_id', 'test-call%')
+    
+    if (callError) {
+      console.error('❌ Error deleting calls:', callError)
+    } else {
+      console.log('✅ Test calls deleted')
+    }
+    
+    // Delete test bookings
+    console.log('🗑️ Deleting test bookings...')
+    const { error: bookingError } = await db
+      .from('bookings')
+      .delete()
+      .like('confirmation', 'TEST%')
+    
+    if (bookingError) {
+      console.error('❌ Error deleting bookings:', bookingError)
+    } else {
+      console.log('✅ Test bookings deleted')
+    }
+    
+    console.log('🎉 Test data cleanup complete!')
     
   } catch (error: any) {
-    console.error('❌ Cleanup error:', error.message)
+    console.error('❌ Cleanup failed:', error.message)
   }
 }
 
