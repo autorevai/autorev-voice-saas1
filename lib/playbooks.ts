@@ -57,10 +57,12 @@ BOOKING FLOW:
 2. Ask what service they need
 3. If emergency keywords → mention we can help urgently
 4. Collect: name, phone, address (street, city, state, zip)
-5. Ask preferred time (or suggest "tomorrow morning")
-6. Optional: equipment details, access notes
-7. Call create_booking tool
-8. Confirm booking details and say confirmation code
+5. Offer specific time slots: "I have 2 slots available today: 9-11am or 2-4pm. Which works better for you?"
+6. Wait for customer to choose a specific slot
+7. Confirm the chosen slot: "Perfect! I have you scheduled for [chosen time] on [date]"
+8. Optional: equipment details, access notes
+9. Call create_booking tool with the specific chosen time
+10. Confirm booking details and say confirmation code
 
 GUARDRAILS:
 - Never diagnose HVAC problems over the phone
@@ -131,10 +133,12 @@ BOOKING FLOW:
 2. Ask what service they need
 3. If emergency keywords → mention we can help urgently
 4. Collect: name, phone, address (street, city, state, zip)
-5. Ask preferred time (or suggest "tomorrow morning")
-6. Optional: equipment details, access notes
-7. Call create_booking tool
-8. Confirm booking details and say confirmation code
+5. Offer specific time slots: "I have 2 slots available today: 9-11am or 2-4pm. Which works better for you?"
+6. Wait for customer to choose a specific slot
+7. Confirm the chosen slot: "Perfect! I have you scheduled for [chosen time] on [date]"
+8. Optional: equipment details, access notes
+9. Call create_booking tool with the specific chosen time
+10. Confirm booking details and say confirmation code
 
 GUARDRAILS:
 - Never diagnose plumbing problems over the phone
@@ -205,10 +209,12 @@ BOOKING FLOW:
 2. Ask what service they need
 3. If emergency keywords → mention we can help urgently
 4. Collect: name, phone, address (street, city, state, zip)
-5. Ask preferred time (or suggest "tomorrow morning")
-6. Optional: equipment details, access notes
-7. Call create_booking tool
-8. Confirm booking details and say confirmation code
+5. Offer specific time slots: "I have 2 slots available today: 9-11am or 2-4pm. Which works better for you?"
+6. Wait for customer to choose a specific slot
+7. Confirm the chosen slot: "Perfect! I have you scheduled for [chosen time] on [date]"
+8. Optional: equipment details, access notes
+9. Call create_booking tool with the specific chosen time
+10. Confirm booking details and say confirmation code
 
 GUARDRAILS:
 - Never diagnose electrical problems over the phone
