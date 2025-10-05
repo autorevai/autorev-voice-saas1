@@ -2,19 +2,17 @@ import { VapiClient } from '@vapi-ai/server-sdk';
 import { PLAYBOOK_TEMPLATES } from '@/lib/playbooks';
 import type { ProvisioningConfig, ProvisioningResult } from '@/lib/types/provisioning';
 
-const vapi = process.env.VAPI_API_KEY ? new VapiClient({ token: process.env.VAPI_API_KEY }) : null;
+const vapi = new VapiClient({ token: process.env.VAPI_API_KEY! });
 
 export async function provisionVapiAssistant(
   config: ProvisioningConfig
 ): Promise<ProvisioningResult> {
   try {
-    // Check if we have VAPI API key - if not, return mock data for testing
+    // Check if we have VAPI API key
     if (!process.env.VAPI_API_KEY) {
-      console.log('VAPI_API_KEY not found, returning mock data for testing');
       return {
-        success: true,
-        assistantId: 'mock-assistant-' + Date.now(),
-        phoneNumber: '+1' + Math.floor(Math.random() * 9000000000 + 1000000000)
+        success: false,
+        error: 'VAPI_API_KEY not configured'
       };
     }
 
@@ -32,7 +30,7 @@ export async function provisionVapiAssistant(
     const systemPrompt = buildSystemPrompt(playbook.systemPrompt, config);
     
     // 3. Create VAPI Assistant (simplified for now)
-    const assistant = await vapi!.assistants.create({
+    const assistant = await vapi.assistants.create({
       name: `${config.businessName} Receptionist`,
       model: {
         provider: 'anthropic',
@@ -53,11 +51,41 @@ export async function provisionVapiAssistant(
         model: 'nova-2',
         language: 'en',
         smartFormat: true
-      }
+      },
+      tools: [
+        {
+          type: 'function',
+          name: 'create_booking',
+          async: false,
+          description: 'Create appointment booking',
+          parameters: {
+            type: 'object',
+            properties: {
+              name: { type: 'string', description: 'Customer full name' },
+              phone: { type: 'string', description: 'Phone number' },
+              address: { type: 'string', description: 'Service address' },
+              service_type: { type: 'string', description: 'Type of service needed' },
+              preferred_time: { type: 'string', description: 'Preferred appointment time' },
+              equipment_info: { type: 'string', description: 'Equipment details' },
+              access_notes: { type: 'string', description: 'Access instructions' }
+            },
+            required: ['name', 'phone', 'address', 'service_type']
+          },
+          server: {
+            url: `${process.env.NEXT_PUBLIC_APP_URL}/api/tools`,
+            headers: {
+              'Content-Type': 'application/json',
+              'x-tool-name': 'create_booking',
+              'x-shared-secret': `Bearer ${process.env.WEBHOOK_SHARED_SECRET}`
+            },
+            timeoutSeconds: 20
+          }
+        }
+      ]
     });
 
     // 4. Purchase Phone Number
-    const phoneNumber = await vapi!.phoneNumbers.create({
+    const phoneNumber = await vapi.phoneNumbers.create({
       provider: 'vapi',
       assistantId: assistant.id
     });
