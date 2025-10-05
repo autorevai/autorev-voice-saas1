@@ -92,8 +92,11 @@ export async function POST(req: NextRequest) {
   }
   
   if (tool === 'quote_estimate') {
+    // Extract data from VAPI message format
+    const toolData = extractToolData(args, 'quote_estimate');
+    
     // Provide price range based on service type
-    const serviceType = args.service_type?.toLowerCase() || '';
+    const serviceType = toolData.service_type?.toLowerCase() || '';
     let priceRange = '$89-$129';
     
     if (serviceType.includes('emergency')) priceRange = '$150-$250';
@@ -109,7 +112,7 @@ export async function POST(req: NextRequest) {
       call_id: callId,
       tenant_id: finalTenantId,
       tool_name: 'quote_estimate',
-      request_json: args,
+      request_json: toolData,
       response_json: { price_range: priceRange, service_type: serviceType },
       success: true
     });
@@ -117,11 +120,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       price_range: priceRange,
-      say: `For ${args.service_type}, the typical cost ranges from ${priceRange}. The final price depends on the specific issue and parts needed. Would you like to schedule an appointment?`
+      say: `For ${toolData.service_type}, the typical cost ranges from ${priceRange}. The final price depends on the specific issue and parts needed. Would you like to schedule an appointment?`
     });
   }
   
   if (tool === 'handoff_sms') {
+    // Extract data from VAPI message format
+    const toolData = extractToolData(args, 'handoff_sms');
+    
     // Log handoff request
     const db = createClient();
     const finalTenantId = tenantId || '00000000-0000-0000-0000-000000000001';
@@ -130,18 +136,21 @@ export async function POST(req: NextRequest) {
       call_id: callId,
       tenant_id: finalTenantId,
       tool_name: 'handoff_sms',
-      request_json: args,
+      request_json: toolData,
       response_json: { sms_type: 'handoff_request' },
       success: true
     });
     
     return NextResponse.json({
-      success: true,
+    success: true,
       say: "I've noted that you'd like someone to call you back. We'll reach out to you at this number within the next hour."
     });
   }
   
   if (tool === 'update_crm_note') {
+    // Extract data from VAPI message format
+    const toolData = extractToolData(args, 'update_crm_note');
+    
     // Log CRM note
     const db = createClient();
     const finalTenantId = tenantId || '00000000-0000-0000-0000-000000000001';
@@ -150,7 +159,7 @@ export async function POST(req: NextRequest) {
       call_id: callId,
       tenant_id: finalTenantId,
       tool_name: 'update_crm_note',
-      request_json: args,
+      request_json: toolData,
       response_json: { note_saved: true },
       success: true
     });
@@ -187,19 +196,23 @@ function parsePreferredTime(timeStr: string): string {
   return tomorrow.toISOString();
 }
 
-function extractBookingData(args: any): any {
+function extractToolData(args: any, toolName: string): any {
   // Handle VAPI message format where data is nested in message.toolCalls
   if (args?.message?.toolCalls && Array.isArray(args.message.toolCalls)) {
-    // Find the create_booking tool call
-    const bookingCall = args.message.toolCalls.find((call: any) => 
-      call.function?.name === 'create_booking' || call.toolCallId === 'create_booking'
+    // Find the specific tool call
+    const toolCall = args.message.toolCalls.find((call: any) => 
+      call.function?.name === toolName || call.toolCallId === toolName
     );
     
-    if (bookingCall?.function?.parameters) {
-      return bookingCall.function.parameters;
+    if (toolCall?.function?.parameters) {
+      return toolCall.function.parameters;
     }
   }
   
   // Fallback to direct args (for testing)
   return args;
+}
+
+function extractBookingData(args: any): any {
+  return extractToolData(args, 'create_booking');
 }
