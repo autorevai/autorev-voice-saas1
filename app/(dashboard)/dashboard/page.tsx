@@ -49,24 +49,36 @@ interface DashboardData {
 async function getDashboardData(): Promise<DashboardData> {
   const db = createClient()
   
-  // Get the authenticated user's tenant
-  const { data: { user } } = await db.auth.getUser()
-  if (!user) {
-    throw new Error('User not authenticated')
-  }
-  
-  // Get user's tenant from users table
-  const { data: userRecord, error: userError } = await db
-    .from('users')
-    .select('tenant_id')
-    .eq('id', user.id)
-    .single()
-  
-  if (userError || !userRecord?.tenant_id) {
-    throw new Error('User has no tenant')
-  }
-  
-  const tenantId = userRecord.tenant_id
+  try {
+    // Get the authenticated user's tenant
+    const { data: { user }, error: authError } = await db.auth.getUser()
+    
+    if (authError) {
+      console.error('Auth error:', authError)
+      throw new Error('Authentication failed')
+    }
+    
+    if (!user) {
+      throw new Error('User not authenticated')
+    }
+    
+    // Get user's tenant from users table
+    const { data: userRecord, error: userError } = await db
+      .from('users')
+      .select('tenant_id')
+      .eq('id', user.id)
+      .single()
+    
+    if (userError) {
+      console.error('User record error:', userError)
+      throw new Error('User not found in database')
+    }
+    
+    if (!userRecord?.tenant_id) {
+      throw new Error('User has no tenant - please complete onboarding')
+    }
+    
+    const tenantId = userRecord.tenant_id
 
   // Get tenant setup status
   const { data: tenant, error: tenantError } = await db
@@ -275,9 +287,9 @@ async function getDashboardData(): Promise<DashboardData> {
       lastCallTime: lastCall?.started_at,
       setupCompleted: tenant?.setup_completed || false
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('Dashboard data fetch error:', error)
-    throw new Error('Failed to fetch dashboard data')
+    throw new Error(`Failed to fetch dashboard data: ${error.message}`)
   }
 }
 

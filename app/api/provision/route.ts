@@ -31,9 +31,21 @@ export async function POST(req: NextRequest) {
 
     // 4. Call provisioning service
     const result = await provisionVapiAssistant({
-      tenantId: userRecord.tenant_id,
       businessName: (userRecord.tenants as any).name,
-      profile
+      profile: {
+        industry: profile.industry || 'hvac',
+        serviceArea: profile.serviceArea || ['43068'],
+        businessHours: {
+          emergencyPhone: businessPhone || '7407393487'
+        },
+        routingConfig: profile.routingConfig || {
+          teamMembers: [{
+            name: 'Team Member',
+            phone: businessPhone || '7407393487',
+            role: 'technician'
+          }]
+        }
+      }
     });
 
     if (!result.success) {
