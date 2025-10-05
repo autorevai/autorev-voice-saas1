@@ -2,6 +2,16 @@ import { VapiClient } from '@vapi-ai/server-sdk';
 import { PLAYBOOK_TEMPLATES } from '@/lib/playbooks';
 import type { ProvisioningConfig, ProvisioningResult } from '@/lib/types/provisioning';
 
+// Validate required env vars (only in production)
+if (process.env.NODE_ENV === 'production') {
+  const REQUIRED_ENV = ['VAPI_API_KEY', 'NEXT_PUBLIC_APP_URL', 'WEBHOOK_SHARED_SECRET'];
+  for (const key of REQUIRED_ENV) {
+    if (!process.env[key]) {
+      throw new Error(`Missing required environment variable: ${key}`);
+    }
+  }
+}
+
 const vapi = new VapiClient({ token: process.env.VAPI_API_KEY! });
 
 export async function provisionVapiAssistant(
@@ -29,7 +39,10 @@ export async function provisionVapiAssistant(
     // 2. Build system prompt (inject business name, hours, area)
     const systemPrompt = buildSystemPrompt(playbook.systemPrompt, config);
     
-    // 3. Create VAPI Assistant (simplified for now)
+    // 3. Create VAPI Assistant
+    // NOTE: Tools must be configured manually in VAPI Dashboard
+    // Go to https://dashboard.vapi.ai -> Tools -> Create Tool
+    // Then add tools to this assistant in the dashboard
     const assistant = await vapi.assistants.create({
       name: `${config.businessName} Receptionist`,
       model: {

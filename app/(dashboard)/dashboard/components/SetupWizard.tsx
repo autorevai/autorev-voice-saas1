@@ -66,7 +66,7 @@ export default function SetupWizard({ onComplete }: SetupWizardProps) {
         },
         body: JSON.stringify({
           tenantId: currentTenant.id,
-          businessName: currentTenant.business_name,
+          businessName: currentTenant.name,
           market: formData.industry || 'hvac',
         }),
       })

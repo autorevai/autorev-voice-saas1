@@ -30,6 +30,12 @@ export default function SetupPage() {
   const [formData, setFormData] = useState<BusinessProfile>({
     industry: 'hvac',
     serviceArea: [],
+    businessHours: {
+      weekdays: '8am-6pm',
+      weekends: 'closed',
+      emergency: false
+    },
+    emergencyKeywords: [],
     routingConfig: {}
   })
 
