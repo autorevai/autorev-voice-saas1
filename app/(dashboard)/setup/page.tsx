@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTenant } from '@/lib/tenant-context'
 import { PLAYBOOK_TEMPLATES } from '@/lib/playbooks'
-import { ArrowLeft, ArrowRight, Check, Copy, Phone, MapPin, Clock, Users, Building, Wrench, Heart, Scale, Stethoscope } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, Copy, Phone, MapPin, Building, Wrench, Heart, Scale, Stethoscope } from 'lucide-react'
 import type { Industry, BusinessProfile } from '@/lib/types/provisioning'
 
 const industryIcons = {
@@ -16,13 +16,6 @@ const industryIcons = {
   medical: Stethoscope
 }
 
-const hourPresets = [
-  { label: '9 AM - 5 PM', value: '9am-5pm' },
-  { label: '8 AM - 6 PM', value: '8am-6pm' },
-  { label: '7 AM - 7 PM', value: '7am-7pm' },
-  { label: '24/7 Emergency', value: '24/7' },
-  { label: 'Custom', value: 'custom' }
-]
 
 export default function SetupPage() {
   const [step, setStep] = useState(1)
@@ -37,19 +30,12 @@ export default function SetupPage() {
   const [formData, setFormData] = useState<BusinessProfile>({
     industry: 'hvac',
     serviceArea: [],
-    businessHours: {
-      weekdays: '8am-6pm',
-      weekends: 'closed',
-      emergency: false
-    },
-    emergencyKeywords: [],
     routingConfig: {}
   })
 
   const [businessPhone, setBusinessPhone] = useState('')
 
   const [zipCode, setZipCode] = useState('')
-  const [customHours, setCustomHours] = useState('')
 
   const handleSubmit = async () => {
     setLoading(true)
@@ -246,97 +232,9 @@ export default function SetupPage() {
     )
   }
 
-  // Step 3: Business Hours
+
+  // Step 3: Business Phone
   if (step === 3) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-8">
-        <div className="max-w-2xl mx-auto">
-          <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-4">Business Hours</h1>
-            <p className="text-lg text-gray-600">When are you available for appointments?</p>
-          </div>
-
-          <div className="p-8 bg-white rounded-lg border border-gray-200">
-            <div className="space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-4">
-                  Weekday Hours
-                </label>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {hourPresets.map((preset) => (
-                    <button
-                      key={preset.value}
-                      onClick={() => {
-                        if (preset.value === 'custom') {
-                          setFormData(prev => ({ ...prev, businessHours: { ...prev.businessHours, weekdays: customHours } }))
-                        } else {
-                          setFormData(prev => ({ ...prev, businessHours: { ...prev.businessHours, weekdays: preset.value } }))
-                        }
-                      }}
-                      className={`p-3 text-left rounded-md border transition-colors ${
-                        formData.businessHours.weekdays === preset.value 
-                          ? 'border-blue-500 bg-blue-50 text-blue-700' 
-                          : 'border-gray-300 hover:border-gray-400'
-                      }`}
-                    >
-                      {preset.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {formData.businessHours.weekdays === 'custom' && (
-                <div>
-                  <input
-                    value={customHours}
-                    onChange={(e) => setCustomHours(e.target.value)}
-                    placeholder="e.g., Monday-Friday 8AM-6PM"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-              )}
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Weekend Hours
-                </label>
-                <select
-                  value={formData.businessHours.weekends}
-                  onChange={(e) => setFormData(prev => ({ ...prev, businessHours: { ...prev.businessHours, weekends: e.target.value } }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="closed">Closed</option>
-                  <option value="9am-5pm">9 AM - 5 PM</option>
-                  <option value="8am-6pm">8 AM - 6 PM</option>
-                  <option value="emergency">Emergency Only</option>
-                </select>
-              </div>
-
-              <div className="flex justify-between">
-                <button 
-                  onClick={() => setStep(2)}
-                  className="flex items-center px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
-                >
-                  <ArrowLeft className="w-4 h-4 mr-2" />
-                  Back
-                </button>
-                <button 
-                  onClick={() => setStep(4)}
-                  className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                >
-                  Next
-                  <ArrowRight className="w-4 h-4 ml-2" />
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  // Step 4: Business Phone
-  if (step === 4) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-8">
         <div className="max-w-2xl mx-auto">
@@ -365,14 +263,14 @@ export default function SetupPage() {
 
               <div className="flex justify-between">
                 <button 
-                  onClick={() => setStep(3)}
+                  onClick={() => setStep(2)}
                   className="flex items-center px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
                 >
                   <ArrowLeft className="w-4 h-4 mr-2" />
                   Back
                 </button>
                 <button 
-                  onClick={() => setStep(5)}
+                  onClick={() => setStep(4)}
                   disabled={!businessPhone.trim()}
                   className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
@@ -387,8 +285,8 @@ export default function SetupPage() {
     )
   }
 
-  // Step 5: Review & Provision
-  if (step === 5) {
+  // Step 4: Review & Provision
+  if (step === 4) {
     const playbook = PLAYBOOK_TEMPLATES[formData.industry]
     
     return (
@@ -417,14 +315,6 @@ export default function SetupPage() {
                     <span className="font-medium">{formData.serviceArea.join(', ')}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Business Hours:</span>
-                    <span className="font-medium">{formData.businessHours.weekdays}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Weekend Hours:</span>
-                    <span className="font-medium">{formData.businessHours.weekends}</span>
-                  </div>
-                  <div className="flex justify-between">
                     <span className="text-gray-600">Forwarding Number:</span>
                     <span className="font-medium">{businessPhone}</span>
                   </div>
@@ -439,7 +329,7 @@ export default function SetupPage() {
 
               <div className="flex justify-between">
                 <button 
-                  onClick={() => setStep(4)}
+                  onClick={() => setStep(3)}
                   className="flex items-center px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
                 >
                   <ArrowLeft className="w-4 h-4 mr-2" />
