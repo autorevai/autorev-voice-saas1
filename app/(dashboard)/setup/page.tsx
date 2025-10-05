@@ -21,7 +21,11 @@ export default function SetupPage() {
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [result, setResult] = useState<{ phoneNumber: string } | null>(null)
+  const [result, setResult] = useState<{ 
+    phoneNumber: string | null, 
+    assistantId: string, 
+    phoneProvisioningFailed?: boolean 
+  } | null>(null)
   const [progress, setProgress] = useState(0)
   const [progressText, setProgressText] = useState('')
   const { currentTenant } = useTenant()
@@ -85,7 +89,11 @@ export default function SetupPage() {
         throw new Error(data.error || 'Provisioning failed')
       }
 
-      setResult({ phoneNumber: data.phoneNumber })
+      setResult({ 
+        phoneNumber: data.phoneNumber || null,
+        assistantId: data.assistantId,
+        phoneProvisioningFailed: data.phoneProvisioningFailed || false
+      })
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -398,69 +406,106 @@ export default function SetupPage() {
                 </svg>
               </div>
               <h1 className="text-3xl font-bold text-gray-900 mb-2">
-                Your AI Receptionist is Live!
+                {result.phoneProvisioningFailed ? 'Assistant Created!' : 'Your AI Receptionist is Live!'}
               </h1>
               <p className="text-gray-600">
-                Your voice assistant is ready to take calls
+                {result.phoneProvisioningFailed 
+                  ? 'Add a phone number to start taking calls' 
+                  : 'Your voice assistant is ready to take calls'}
               </p>
             </div>
 
-            {/* Phone Number Display */}
-            <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg p-6 mb-6">
-              <p className="text-white text-sm font-medium mb-2">Customer Phone Number</p>
-              <div className="flex items-center justify-between">
-                <p className="text-white text-3xl font-bold font-mono">
-                  {result.phoneNumber}
-                </p>
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(result.phoneNumber);
-                    // Show toast or feedback
-                  }}
-                  className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg transition-colors"
-                >
-                  Copy
-                </button>
+            {/* Phone Number Display OR Manual Instructions */}
+            {result.phoneNumber ? (
+              <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg p-6 mb-6">
+                <p className="text-white text-sm font-medium mb-2">Customer Phone Number</p>
+                <div className="flex items-center justify-between">
+                  <p className="text-white text-3xl font-bold font-mono">
+                    {result.phoneNumber}
+                  </p>
+                  <button
+                    onClick={() => {
+                      if (result.phoneNumber) {
+                        navigator.clipboard.writeText(result.phoneNumber);
+                      }
+                    }}
+                    className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg transition-colors"
+                  >
+                    Copy
+                  </button>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 mb-6">
+                <h3 className="font-semibold text-yellow-900 mb-2">Phone Number Needed</h3>
+                <p className="text-yellow-800 text-sm mb-4">
+                  We couldn't automatically provision a phone number. You can add one manually:
+                </p>
+                <ol className="text-sm text-yellow-800 space-y-2 mb-4">
+                  <li>1. Go to <a href="https://dashboard.vapi.ai/phone-numbers" target="_blank" className="underline">VAPI Phone Numbers</a></li>
+                  <li>2. Click "Create Phone Number"</li>
+                  <li>3. Select your assistant: {result.assistantId}</li>
+                  <li>4. Save the number</li>
+                </ol>
+                
+                <a
+                  href="https://dashboard.vapi.ai/phone-numbers"
+                  target="_blank"
+                  className="inline-block bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg text-sm font-medium"
+                >
+                  Add Phone Number in VAPI
+                </a>
+              </div>
+            )}
 
             {/* Action Buttons */}
             <div className="space-y-3 mb-6">
-              <a
-                href={`tel:${result.phoneNumber}`}
-                className="block w-full bg-green-600 hover:bg-green-700 text-white text-center py-3 px-4 rounded-lg font-medium transition-colors"
-              >
-                Test Call Now
-              </a>
+              {result.phoneNumber && (
+                <a
+                  href={`tel:${result.phoneNumber}`}
+                  className="block w-full bg-green-600 hover:bg-green-700 text-white text-center py-3 px-4 rounded-lg font-medium transition-colors"
+                >
+                  Test Call Now
+                </a>
+              )}
               
               <button
-                onClick={() => router.push('/dashboard')}
+                onClick={() => {
+                  router.push('/dashboard');
+                  router.refresh(); // Refresh to load new assistant data
+                }}
                 className="block w-full bg-blue-600 hover:bg-blue-700 text-white text-center py-3 px-4 rounded-lg font-medium transition-colors"
               >
                 Go to Dashboard
               </button>
             </div>
 
-            {/* Quick Tips */}
+            {/* Next Steps */}
             <div className="bg-gray-50 rounded-lg p-4">
               <h3 className="font-semibold text-gray-900 mb-3">Next Steps:</h3>
               <ul className="space-y-2 text-sm text-gray-700">
-                <li className="flex items-start">
-                  <span className="text-green-600 mr-2">✓</span>
-                  <span>Add this number to your website and business cards</span>
-                </li>
-                <li className="flex items-start">
-                  <span className="text-green-600 mr-2">✓</span>
-                  <span>Test the assistant by calling and booking an appointment</span>
-                </li>
+                {result.phoneNumber && (
+                  <>
+                    <li className="flex items-start">
+                      <span className="text-green-600 mr-2">✓</span>
+                      <span>Add this number to your website and business cards</span>
+                    </li>
+                    <li className="flex items-start">
+                      <span className="text-green-600 mr-2">✓</span>
+                      <span>Test the assistant by calling and booking an appointment</span>
+                    </li>
+                  </>
+                )}
                 <li className="flex items-start">
                   <span className="text-green-600 mr-2">✓</span>
                   <span>Check the dashboard to see calls and bookings in real-time</span>
                 </li>
-                <li className="flex items-start">
-                  <span className="text-green-600 mr-2">✓</span>
-                  <span>Share the number with customers - your AI is ready!</span>
-                </li>
+                {result.phoneNumber && (
+                  <li className="flex items-start">
+                    <span className="text-green-600 mr-2">✓</span>
+                    <span>Share the number with customers - your AI is ready!</span>
+                  </li>
+                )}
               </ul>
             </div>
 

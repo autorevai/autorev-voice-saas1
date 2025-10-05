@@ -73,7 +73,7 @@ async function getDashboardData(): Promise<DashboardData> {
     // Get assistant info
     const { data: assistant, error: assistantError } = await db
       .from('assistants')
-      .select('*')
+      .select('*, vapi_number_id')
       .eq('tenant_id', tenantId)
       .eq('status', 'active')
       .single()

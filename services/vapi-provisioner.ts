@@ -88,17 +88,31 @@ export async function provisionVapiAssistant(
       }
     });
 
-    // 5. Purchase Phone Number
-    const phoneNumber = await vapi.phoneNumbers.create({
-      provider: 'vapi',
-      assistantId: assistant.id
-    });
+            // 5. Try to Purchase Phone Number
+            let phoneNumber = null;
+            let phoneProvisioningFailed = false;
+            
+            try {
+              const phone = await vapi.phoneNumbers.create({
+                provider: 'vapi',
+                assistantId: assistant.id
+              });
+              phoneNumber = phone.number;
+            } catch (phoneError) {
+              console.error('Phone provisioning failed:', phoneError);
+              phoneProvisioningFailed = true;
+              // Continue without phone - user can add manually later
+            }
 
-    return {
-      success: true,
-      assistantId: assistant.id,
-      phoneNumber: phoneNumber.number
-    };
+            return {
+              success: true,
+              assistantId: assistant.id,
+              phoneNumber: phoneNumber,
+              phoneProvisioningFailed: phoneProvisioningFailed,
+              message: phoneNumber 
+                ? 'Assistant created successfully!' 
+                : 'Assistant created, but phone provisioning failed. You can add a phone number manually in VAPI dashboard.'
+            };
 
   } catch (error: any) {
     console.error('VAPI provisioning error:', error);
