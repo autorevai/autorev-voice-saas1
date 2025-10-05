@@ -138,7 +138,7 @@ export async function provisionVapiAssistant(
                 // CRITICAL: Set server for call lifecycle webhooks (HTTPS required)
                 server: {
                   url: `https://${process.env.NEXT_PUBLIC_APP_URL || 'autorev-voice-saas1-7p9utuwbb-chris-diyannis-projects.vercel.app'}/api/vapi/webhook`,
-                  secret: process.env.WEBHOOK_SHARED_SECRET
+                  serverSecret: process.env.WEBHOOK_SHARED_SECRET
                 },
                 fallbackDestination: {
                   type: 'number',
