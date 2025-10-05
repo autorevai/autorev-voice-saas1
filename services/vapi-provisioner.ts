@@ -49,8 +49,14 @@ export async function provisionVapiAssistant(
     const systemPrompt = buildSystemPrompt(playbook.systemPrompt, config);
     
     // 3. Create VAPI Assistant
+    // Truncate business name to fit VAPI's 40-character limit
+    const truncatedBusinessName = config.businessName.length > 25 
+      ? config.businessName.substring(0, 25) 
+      : config.businessName
+    const assistantName = `${truncatedBusinessName} Receptionist`
+    
     const assistant = await vapi.assistants.create({
-      name: `${config.businessName} Receptionist`,
+      name: assistantName,
       model: {
         provider: 'openai',
         model: 'gpt-4o',
