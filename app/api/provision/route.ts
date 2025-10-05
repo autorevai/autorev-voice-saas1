@@ -47,8 +47,10 @@ export async function POST(req: NextRequest) {
       vapi_number_id: result.phoneNumber,
       name: `${(userRecord.tenants as any).name} Receptionist`,
       status: 'active',
-      system_prompt: '...', // Store the built prompt
-      playbook_config: profile
+      settings_json: {
+        system_prompt: 'AI receptionist for ' + (userRecord.tenants as any).name,
+        playbook_config: profile
+      }
     });
 
     if (assistantError) throw assistantError;
