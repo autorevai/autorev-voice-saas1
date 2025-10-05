@@ -2,12 +2,14 @@ import { VapiClient } from '@vapi-ai/server-sdk';
 import { PLAYBOOK_TEMPLATES } from '@/lib/playbooks';
 import type { ProvisioningConfig, ProvisioningResult } from '@/lib/types/provisioning';
 
-// Validate required env vars (only in production)
-if (process.env.NODE_ENV === 'production') {
-  const REQUIRED_ENV = ['VAPI_API_KEY', 'NEXT_PUBLIC_APP_URL', 'WEBHOOK_SHARED_SECRET'];
-  for (const key of REQUIRED_ENV) {
-    if (!process.env[key]) {
-      throw new Error(`Missing required environment variable: ${key}`);
+// Validate required env vars (only at runtime, not build time)
+function validateEnvVars() {
+  if (process.env.NODE_ENV === 'production') {
+    const REQUIRED_ENV = ['VAPI_API_KEY', 'NEXT_PUBLIC_APP_URL', 'WEBHOOK_SHARED_SECRET'];
+    for (const key of REQUIRED_ENV) {
+      if (!process.env[key]) {
+        throw new Error(`Missing required environment variable: ${key}`);
+      }
     }
   }
 }
@@ -18,6 +20,9 @@ export async function provisionVapiAssistant(
   config: ProvisioningConfig
 ): Promise<ProvisioningResult> {
   try {
+    // Validate environment variables at runtime
+    validateEnvVars();
+    
     // Check if we have VAPI API key
     if (!process.env.VAPI_API_KEY) {
       return {
@@ -40,9 +45,6 @@ export async function provisionVapiAssistant(
     const systemPrompt = buildSystemPrompt(playbook.systemPrompt, config);
     
     // 3. Create VAPI Assistant
-    // NOTE: Tools must be configured manually in VAPI Dashboard
-    // Go to https://dashboard.vapi.ai -> Tools -> Create Tool
-    // Then add tools to this assistant in the dashboard
     const assistant = await vapi.assistants.create({
       name: `${config.businessName} Receptionist`,
       model: {
@@ -67,7 +69,26 @@ export async function provisionVapiAssistant(
       }
     });
 
-    // 4. Purchase Phone Number
+    // 4. Add tools to assistant using PATCH request
+    const toolIds = [
+      '6ec7dfc4-c44a-4b13-b1cc-409d192c6355', // create_booking
+      '1017d954-0a78-4099-abd9-d85ea9551aca', // quote_estimate
+      '0dcefa2c-3c13-473b-a306-f5cf1c3ef093', // handoff_sms
+      'a203126f-3187-4c91-96a4-c448f72cdfa6'  // update_crm_note
+    ];
+
+    // Update assistant with tools
+    await vapi.assistants.update(assistant.id, {
+      model: {
+        provider: 'anthropic',
+        model: 'claude-sonnet-4-20250514',
+        temperature: 0.7,
+        messages: [{ role: 'system', content: systemPrompt }],
+        toolIds: toolIds
+      }
+    });
+
+    // 5. Purchase Phone Number
     const phoneNumber = await vapi.phoneNumbers.create({
       provider: 'vapi',
       assistantId: assistant.id

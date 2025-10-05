@@ -15,11 +15,17 @@ export async function POST(req: NextRequest) {
   const tenantId = req.headers.get('x-tenant-id') || process.env.DEMO_TENANT_ID;
   
   if (!tenantId) {
-    return NextResponse.json({ success: false, error: 'No tenant ID' }, { status: 400 });
+    console.warn('No tenant_id provided, using demo tenant');
+    // For now, use a fallback tenant ID if none provided
+    const fallbackTenantId = '00000000-0000-0000-0000-000000000001';
+    console.log('Using fallback tenant ID:', fallbackTenantId);
   }
 
   if (tool === 'create_booking') {
     const db = createClient();
+    
+    // Use fallback tenant ID if none provided
+    const finalTenantId = tenantId || '00000000-0000-0000-0000-000000000001';
     
     // Generate confirmation code
     const confirmation = generateConfirmationCode();
@@ -29,7 +35,7 @@ export async function POST(req: NextRequest) {
     
     // Save to database
     const { data: booking, error } = await db.from('bookings').insert({
-      tenant_id: tenantId,
+      tenant_id: finalTenantId,
       confirmation: confirmation,
       window_text: args.preferred_time || 'Next available',
       start_ts: startTime,
