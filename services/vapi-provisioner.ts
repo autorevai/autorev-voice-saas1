@@ -137,9 +137,9 @@ export async function provisionVapiAssistant(
                 numberDesiredAreaCode: '740',
                 // CRITICAL: Set server for call lifecycle webhooks (HTTPS required)
                 server: {
-                  url: `https://${process.env.NEXT_PUBLIC_APP_URL || 'autorev-voice-saas1-7p9utuwbb-chris-diyannis-projects.vercel.app'}/api/vapi/webhook`,
+                  url: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001'}/api/vapi/webhook`,
                   secret: process.env.WEBHOOK_SHARED_SECRET
-                },
+                } as any, // Type assertion to bypass incomplete SDK types
                 fallbackDestination: {
                   type: 'number',
                   number: config.profile.businessHours?.emergencyPhone?.startsWith('+1') 

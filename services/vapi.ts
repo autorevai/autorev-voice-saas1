@@ -3,7 +3,7 @@ import { VapiClient } from '@vapi-ai/server-sdk';
 
 const vapi = new VapiClient({ token: process.env.VAPI_API_KEY! });
 const PUBLIC_APP_URL = process.env.NEXT_PUBLIC_APP_URL!;
-if (!PUBLIC_APP_URL) throw new Error('Set NEXT_PUBLIC_APP_URL in Vercel env (e.g., https://yourapp.vercel.app)');
+if (!PUBLIC_APP_URL) throw new Error('Set NEXT_PUBLIC_APP_URL in environment (e.g., http://localhost:3001 for local, https://yourapp.vercel.app for production)');
 
 export type TenantInput = {
   id: string;
