@@ -1,6 +1,7 @@
 import { createClient } from '../../../lib/supabase/server'
 import DashboardClient from './components/DashboardClient'
 import PhoneNumberDisplay from './components/PhoneNumberDisplay'
+import PhoneNumberCard from './components/PhoneNumberCard'
 
 interface Call {
   id: string
@@ -246,45 +247,8 @@ export default async function DashboardPage() {
         <h1 className="text-2xl font-bold text-gray-900 mb-6">Dashboard</h1>
         
         {/* Setup Success Banner */}
-        {data.assistant && (
-          <div className="mb-8">
-            <div className="bg-gradient-to-r from-green-50 to-blue-50 border border-green-200 rounded-lg p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg font-semibold text-green-800 mb-2">
-                    Setup Complete! 🎉
-                  </h3>
-                  <p className="text-green-700 mb-4">
-                    Your AI receptionist is live and ready to take calls.
-                  </p>
-                  {data.assistant.vapi_number_id ? (
-                    <div className="flex items-center space-x-4">
-                      <div className="text-2xl font-bold text-green-800">
-                        {data.assistant.vapi_number_id}
-                      </div>
-                      <button
-                        onClick={() => data.assistant?.vapi_number_id && navigator.clipboard.writeText(data.assistant.vapi_number_id)}
-                        className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition-colors"
-                      >
-                        Copy Number
-                      </button>
-                      <a
-                        href={`tel:${data.assistant.vapi_number_id}`}
-                        className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
-                      >
-                        Test Call
-                      </a>
-                    </div>
-                  ) : (
-                    <div className="text-yellow-700">
-                      <p>Phone number provisioning in progress. Please check back in a few minutes.</p>
-                      <p className="text-sm mt-2">If this persists, you may need to add a phone number manually in the VAPI dashboard.</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
+        {data.assistant && data.assistant.vapi_number_id && (
+          <PhoneNumberCard phoneNumber={data.assistant.vapi_number_id} />
         )}
 
         {/* Setup Banner - Show when setup is not completed */}
