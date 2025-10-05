@@ -46,6 +46,8 @@ export default function SetupPage() {
     routingConfig: {}
   })
 
+  const [businessPhone, setBusinessPhone] = useState('')
+
   const [zipCode, setZipCode] = useState('')
   const [customHours, setCustomHours] = useState('')
 
@@ -55,6 +57,14 @@ export default function SetupPage() {
     setProgress(0)
 
     try {
+      if (!currentTenant) {
+        throw new Error('No tenant found. Please refresh and try again.')
+      }
+
+      if (!businessPhone.trim()) {
+        throw new Error('Business phone number is required')
+      }
+
       // Simulate progress
       setProgressText('Creating your AI receptionist...')
       setProgress(33)
@@ -71,7 +81,10 @@ export default function SetupPage() {
       const response = await fetch('/api/provision', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        body: JSON.stringify({
+          ...formData,
+          businessPhone: businessPhone.trim()
+        })
       })
 
       const data = await response.json()
@@ -322,61 +335,32 @@ export default function SetupPage() {
     )
   }
 
-  // Step 4: Team Routing
+  // Step 4: Business Phone
   if (step === 4) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-8">
         <div className="max-w-2xl mx-auto">
           <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-4">Team Routing</h1>
-            <p className="text-lg text-gray-600">Optional: Set up phone numbers for different departments</p>
+            <h1 className="text-3xl font-bold text-gray-900 mb-4">Business Phone Number</h1>
+            <p className="text-lg text-gray-600">Where should we forward calls when customers need to speak to a human?</p>
           </div>
 
           <div className="p-8 bg-white rounded-lg border border-gray-200">
             <div className="space-y-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Sales Team
+                  Your Business Phone Number
                 </label>
                 <input
+                  type="tel"
                   placeholder="(555) 123-4567"
-                  value={formData.routingConfig.sales || ''}
-                  onChange={(e) => setFormData(prev => ({ 
-                    ...prev, 
-                    routingConfig: { ...prev.routingConfig, sales: e.target.value } 
-                  }))}
+                  value={businessPhone}
+                  onChange={(e) => setBusinessPhone(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Dispatch/Service
-                </label>
-                <input
-                  placeholder="(555) 123-4567"
-                  value={formData.routingConfig.dispatch || ''}
-                  onChange={(e) => setFormData(prev => ({ 
-                    ...prev, 
-                    routingConfig: { ...prev.routingConfig, dispatch: e.target.value } 
-                  }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Billing
-                </label>
-                <input
-                  placeholder="(555) 123-4567"
-                  value={formData.routingConfig.billing || ''}
-                  onChange={(e) => setFormData(prev => ({ 
-                    ...prev, 
-                    routingConfig: { ...prev.routingConfig, billing: e.target.value } 
-                  }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+                <p className="text-sm text-gray-500 mt-2">
+                  This is where VAPI will forward calls when customers need to speak to a real person.
+                </p>
               </div>
 
               <div className="flex justify-between">
@@ -389,7 +373,8 @@ export default function SetupPage() {
                 </button>
                 <button 
                   onClick={() => setStep(5)}
-                  className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                  disabled={!businessPhone.trim()}
+                  className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Next
                   <ArrowRight className="w-4 h-4 ml-2" />
@@ -420,6 +405,10 @@ export default function SetupPage() {
                 <h3 className="font-semibold text-lg mb-4">Configuration Summary</h3>
                 <div className="space-y-3">
                   <div className="flex justify-between">
+                    <span className="text-gray-600">Business:</span>
+                    <span className="font-medium">{currentTenant?.name || 'Loading...'}</span>
+                  </div>
+                  <div className="flex justify-between">
                     <span className="text-gray-600">Industry:</span>
                     <span className="font-medium">{playbook.name}</span>
                   </div>
@@ -434,6 +423,10 @@ export default function SetupPage() {
                   <div className="flex justify-between">
                     <span className="text-gray-600">Weekend Hours:</span>
                     <span className="font-medium">{formData.businessHours.weekends}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Forwarding Number:</span>
+                    <span className="font-medium">{businessPhone}</span>
                   </div>
                 </div>
               </div>

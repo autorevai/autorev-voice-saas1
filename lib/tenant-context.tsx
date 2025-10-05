@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 
 interface Tenant {
   id: string
-  business_name: string
+  name: string
   industry?: string
   phone?: string
 }
@@ -51,7 +51,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
       // Get user's tenant access with explicit field selection
       const { data: userRecord } = await supabase
         .from('users')
-        .select('tenant_id, tenants(id, business_name, industry, phone)')
+        .select('tenant_id, tenants(id, name, industry, phone)')
         .eq('id', user.id)
         .single()
 

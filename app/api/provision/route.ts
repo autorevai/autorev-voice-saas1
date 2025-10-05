@@ -26,7 +26,8 @@ export async function POST(req: NextRequest) {
     }
 
     // 3. Parse request body
-    const profile: BusinessProfile = await req.json();
+    const body = await req.json();
+    const { businessPhone, ...profile } = body;
 
     // 4. Call provisioning service
     const result = await provisionVapiAssistant({
@@ -58,7 +59,7 @@ export async function POST(req: NextRequest) {
       service_area: profile.serviceArea,
       business_hours: profile.businessHours,
       emergency_keywords: profile.emergencyKeywords,
-      routing_config: profile.routingConfig,
+      routing_config: { ...profile.routingConfig, businessPhone },
       setup_completed: true
     }).eq('id', userRecord.tenant_id);
 
