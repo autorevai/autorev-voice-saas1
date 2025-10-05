@@ -36,6 +36,9 @@ export async function POST(req: NextRequest) {
         industry: profile.industry || 'hvac',
         serviceArea: profile.serviceArea || ['43068'],
         businessHours: {
+          weekdays: '8am-5pm',
+          weekends: '9am-3pm',
+          emergency: true,
           emergencyPhone: businessPhone || '7407393487'
         },
         routingConfig: profile.routingConfig || {
