@@ -33,7 +33,7 @@ async function checkPhoneAssistantStatus() {
     console.log(`   Status: Active`)
     console.log(`   Model: ${assistant.model?.model || 'N/A'}`)
     console.log(`   Provider: ${assistant.model?.provider || 'N/A'}`)
-    console.log(`   Tools: ${assistant.tools?.length || 0} tools`)
+    console.log(`   Tools: N/A (tools configured via toolIds)`)
     console.log('')
     
     // Check if phone is linked to assistant
