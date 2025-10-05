@@ -48,18 +48,21 @@ export function TenantProvider({ children }: { children: ReactNode }) {
         return
       }
 
-      // Get user's tenant access with explicit field selection
-      const { data: userRecord } = await supabase
-        .from('users')
+      // Get user's tenant access through user_tenants table
+      const { data: userTenants } = await supabase
+        .from('user_tenants')
         .select('tenant_id, tenants(id, name, industry, phone)')
-        .eq('id', user.id)
-        .single()
+        .eq('user_id', user.id)
 
-      if (userRecord?.tenants) {
-        // Cast through unknown to satisfy TypeScript
-        const tenant = userRecord.tenants as unknown as Tenant
-        setCurrentTenant(tenant)
-        setTenants([tenant])
+      if (userTenants && userTenants.length > 0) {
+        // Get the first tenant (users typically have one tenant)
+        const userTenant = userTenants[0]
+        if (userTenant.tenants) {
+          // Cast through unknown to satisfy TypeScript
+          const tenant = userTenant.tenants as unknown as Tenant
+          setCurrentTenant(tenant)
+          setTenants([tenant])
+        }
       }
     } catch (error) {
       console.warn('Failed to fetch tenants:', error)

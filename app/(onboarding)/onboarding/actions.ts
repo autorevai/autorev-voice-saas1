@@ -29,10 +29,9 @@ export async function createTenant(data: { businessName: string; website?: strin
 
     if (tenantError) return { success: false, error: tenantError.message }
 
-    // Link user to tenant using service client
+    // Create user record if it doesn't exist
     const { error: userError } = await db.from('users').upsert({
       id: user.id,
-      tenant_id: tenant.id,
       email: user.email!,
       name: user.user_metadata?.full_name || user.email!,
     })
@@ -41,6 +40,19 @@ export async function createTenant(data: { businessName: string; website?: strin
       // Clean up tenant if user creation fails
       await db.from('tenants').delete().eq('id', tenant.id)
       return { success: false, error: userError.message }
+    }
+
+    // Link user to tenant using user_tenants table
+    const { error: userTenantError } = await db.from('user_tenants').insert({
+      user_id: user.id,
+      tenant_id: tenant.id,
+      role: 'owner'
+    })
+
+    if (userTenantError) {
+      // Clean up tenant if user-tenant linking fails
+      await db.from('tenants').delete().eq('id', tenant.id)
+      return { success: false, error: userTenantError.message }
     }
 
     revalidatePath('/dashboard')
