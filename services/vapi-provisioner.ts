@@ -125,7 +125,9 @@ export async function provisionVapiAssistant(
                 numberDesiredAreaCode: '740',
                 fallbackDestination: {
                   type: 'number',
-                  number: config.profile.businessHours?.emergencyPhone || '+18445551234'
+                  number: config.profile.businessHours?.emergencyPhone?.startsWith('+1') 
+                    ? config.profile.businessHours.emergencyPhone 
+                    : `+1${config.profile.businessHours?.emergencyPhone || '8445551234'}`
                 }
               });
               phoneNumber = phone.number;

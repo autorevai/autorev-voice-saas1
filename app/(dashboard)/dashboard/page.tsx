@@ -48,11 +48,25 @@ interface DashboardData {
 
 async function getDashboardData(): Promise<DashboardData> {
   const db = createClient()
-  const tenantId = process.env.DEMO_TENANT_ID
   
-  if (!tenantId) {
-    throw new Error('DEMO_TENANT_ID not configured')
+  // Get the authenticated user's tenant
+  const { data: { user } } = await db.auth.getUser()
+  if (!user) {
+    throw new Error('User not authenticated')
   }
+  
+  // Get user's tenant from users table
+  const { data: userRecord, error: userError } = await db
+    .from('users')
+    .select('tenant_id')
+    .eq('id', user.id)
+    .single()
+  
+  if (userError || !userRecord?.tenant_id) {
+    throw new Error('User has no tenant')
+  }
+  
+  const tenantId = userRecord.tenant_id
 
   // Get tenant setup status
   const { data: tenant, error: tenantError } = await db
