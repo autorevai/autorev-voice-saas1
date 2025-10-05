@@ -18,6 +18,19 @@ for (const envVar of requiredEnvVars) {
 
 const nextConfig: NextConfig = {
   /* config options here */
+  typescript: {
+    ignoreBuildErrors: false,
+  },
+  // Exclude scripts directory from build
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      config.externals = config.externals || [];
+      config.externals.push({
+        'scripts': 'commonjs scripts'
+      });
+    }
+    return config;
+  }
 };
 
 export default nextConfig;

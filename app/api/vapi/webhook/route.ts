@@ -52,7 +52,7 @@ export async function POST(req: Request) {
           if (assistantId) {
             const { data: assistant } = await supabase
               .from('assistants')
-              .select('tenant_id')
+              .select('id, tenant_id')
               .eq('vapi_assistant_id', assistantId)
               .single();
             
