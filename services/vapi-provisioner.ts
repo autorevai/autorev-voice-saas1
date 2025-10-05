@@ -48,8 +48,8 @@ export async function provisionVapiAssistant(
     const assistant = await vapi.assistants.create({
       name: `${config.businessName} Receptionist`,
       model: {
-        provider: 'anthropic',
-        model: 'claude-sonnet-4-20250514',
+        provider: 'openai',
+        model: 'gpt-4o',
         temperature: 0.7,
         messages: [{ role: 'system', content: systemPrompt }]
       },
@@ -80,8 +80,8 @@ export async function provisionVapiAssistant(
     // Update assistant with tools
     await vapi.assistants.update(assistant.id, {
       model: {
-        provider: 'anthropic',
-        model: 'claude-sonnet-4-20250514',
+        provider: 'openai',
+        model: 'gpt-4o',
         temperature: 0.7,
         messages: [{ role: 'system', content: systemPrompt }],
         toolIds: toolIds
