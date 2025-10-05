@@ -159,10 +159,9 @@ export async function provisionVapiAssistant(
               success: true,
               assistantId: assistant.id,
               phoneNumber: phoneNumber || undefined,
-              phoneProvisioningFailed: phoneProvisioningFailed,
-              message: phoneNumber 
-                ? 'Assistant created successfully!' 
-                : 'Assistant created, but phone provisioning failed. You can add a phone number manually in VAPI dashboard.'
+              error: phoneProvisioningFailed 
+                ? 'Assistant created, but phone provisioning failed. You can add a phone number manually in VAPI dashboard.'
+                : undefined
             };
 
   } catch (error: any) {
