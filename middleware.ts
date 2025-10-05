@@ -42,7 +42,7 @@ export async function middleware(request: NextRequest) {
 
     // Redirect authenticated users away from auth pages
     if (session && isAuthPage) {
-      return NextResponse.redirect(new URL('/onboarding', request.url))
+      return NextResponse.redirect(new URL('/dashboard', request.url))
     }
 
     // Redirect unauthenticated users to login
