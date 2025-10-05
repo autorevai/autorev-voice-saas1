@@ -1,4 +1,8 @@
+import { config } from 'dotenv'
 import { createClient } from '../lib/db'
+
+// Load environment variables
+config({ path: '.env.local' })
 
 async function seedDemoTenant() {
   const db = createClient()

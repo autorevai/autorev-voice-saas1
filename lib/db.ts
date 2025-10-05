@@ -1,11 +1,11 @@
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 
-// Use service_role key for server-side operations that bypass RLS
-// Use anon key for client-side operations that respect RLS policies
-const supabaseUrl = process.env.SUPABASE_URL!
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-
 export function createClient() {
+  // Use service_role key for server-side operations that bypass RLS
+  // Use anon key for client-side operations that respect RLS policies
+  const supabaseUrl = process.env.SUPABASE_URL!
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+  
   return createSupabaseClient(supabaseUrl, supabaseServiceKey, {
     auth: {
       autoRefreshToken: false,

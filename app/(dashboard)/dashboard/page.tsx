@@ -55,11 +55,15 @@ async function getDashboardData(): Promise<DashboardData> {
   }
 
   // Get tenant setup status
-  const { data: tenant } = await db
+  const { data: tenant, error: tenantError } = await db
     .from('tenants')
     .select('setup_completed')
     .eq('id', tenantId)
     .single()
+  
+  if (tenantError) {
+    console.error('Error fetching tenant:', tenantError)
+  }
 
   const today = new Date()
   today.setHours(0, 0, 0, 0)
@@ -67,12 +71,16 @@ async function getDashboardData(): Promise<DashboardData> {
 
   try {
     // Get assistant info
-    const { data: assistant } = await db
+    const { data: assistant, error: assistantError } = await db
       .from('assistants')
       .select('*')
       .eq('tenant_id', tenantId)
       .eq('status', 'active')
       .single()
+    
+    if (assistantError && assistantError.code !== 'PGRST116') {
+      console.error('Error fetching assistant:', assistantError)
+    }
 
     // Get calls today
     const { count: callsToday } = await db
@@ -301,7 +309,7 @@ export default async function DashboardPage() {
               </a>
             </div>
           </div>
-        ) : data.assistant ? (
+        ) : data.assistant && data.assistant.vapi_number_id && data.assistant.vapi_assistant_id ? (
           // Success Display - Show when setup IS completed
           <PhoneNumberDisplay 
             phoneNumber={data.assistant.vapi_number_id}
