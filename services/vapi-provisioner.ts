@@ -55,14 +55,15 @@ export async function provisionVapiAssistant(
         provider: 'openai',
         model: 'gpt-4o',
         temperature: 0.7,
+        maxTokens: 150,
         messages: [{ role: 'system', content: systemPrompt }]
       },
       voice: {
         provider: '11labs',
         model: 'eleven_turbo_v2_5',
         voiceId: process.env.ELEVEN_VOICE_ID || '21m00Tcm4TlvDq8ikWAM',
-        stability: 0.55,
-        similarityBoost: 0.78,
+        stability: 0.5,
+        similarityBoost: 0.75,
         speed: 1.0
       },
       transcriber: {
@@ -70,7 +71,8 @@ export async function provisionVapiAssistant(
         model: 'nova-2',
         language: 'en',
         smartFormat: true
-      }
+      },
+      firstMessage: `Hi, thanks for calling ${config.businessName}. What can I help you with today?`
     });
 
     // 4. Add tools to assistant using PATCH request
@@ -87,9 +89,19 @@ export async function provisionVapiAssistant(
         provider: 'openai',
         model: 'gpt-4o',
         temperature: 0.7,
+        maxTokens: 150,
         messages: [{ role: 'system', content: systemPrompt }],
         toolIds: toolIds
-      }
+      },
+      voice: {
+        provider: '11labs',
+        model: 'eleven_turbo_v2_5',
+        voiceId: process.env.ELEVEN_VOICE_ID || '21m00Tcm4TlvDq8ikWAM',
+        stability: 0.5,
+        similarityBoost: 0.75,
+        speed: 1.0
+      },
+      firstMessage: `Hi, thanks for calling ${config.businessName}. What can I help you with today?`
     });
 
             // 5. Try to Purchase Phone Number (may fail due to rate limits)
