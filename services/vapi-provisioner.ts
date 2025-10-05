@@ -107,6 +107,12 @@ export async function provisionVapiAssistant(
         similarityBoost: 0.75,
         speed: 1.0
       },
+      transcriber: {
+        provider: 'deepgram',
+        model: 'nova-2',
+        language: 'en',
+        smartFormat: true
+      },
       firstMessage: `Hi, thanks for calling ${config.businessName}. What can I help you with today?`
     });
 

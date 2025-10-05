@@ -42,22 +42,33 @@ export async function POST(req: Request) {
           .single();
         
         if (!existingCall) {
-          // Create call record if it doesn't exist
-          const { data: tenant } = await supabase
-            .from('tenants')
-            .select('id')
-            .limit(1)
-            .single();
-          
-          if (tenant) {
-            await supabase.from('calls').insert({
-              tenant_id: tenant.id,
-              vapi_call_id: callId,
-              started_at: call?.startedAt || new Date().toISOString(),
-              outcome: 'unknown'
-            });
+          // Find tenant by assistant ID from the call
+          const assistantId = call?.assistantId;
+          if (assistantId) {
+            const { data: assistant } = await supabase
+              .from('assistants')
+              .select('tenant_id')
+              .eq('vapi_assistant_id', assistantId)
+              .single();
             
-            console.log('VAPI_CALL_CREATED', { callId });
+            if (assistant) {
+              await supabase.from('calls').insert({
+                tenant_id: assistant.tenant_id,
+                vapi_call_id: callId,
+                started_at: call?.startedAt || new Date().toISOString(),
+                outcome: 'unknown'
+              });
+              
+              console.log('VAPI_CALL_CREATED', { 
+                callId, 
+                assistantId, 
+                tenantId: assistant.tenant_id 
+              });
+            } else {
+              console.warn('VAPI_CALL_NO_ASSISTANT', { callId, assistantId });
+            }
+          } else {
+            console.warn('VAPI_CALL_NO_ASSISTANT_ID', { callId });
           }
         }
         break;

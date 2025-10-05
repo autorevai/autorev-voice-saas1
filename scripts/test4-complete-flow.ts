@@ -1,6 +1,7 @@
 import { createClient } from '../lib/db'
 import { provisionVapiAssistant } from '../services/vapi-provisioner'
 import { config } from 'dotenv'
+import { randomUUID } from 'crypto'
 
 config({ path: '.env.local' })
 
@@ -13,7 +14,7 @@ async function test4CompleteFlow() {
   try {
     // Step 1: Create test4 user
     console.log('👤 Step 1: Creating test4@autorev.ai user...')
-    const testUserId = `c8e09908-75ae-475d-a197-db1c8b74c${Math.floor(Math.random() * 1000)}` // Random UUID suffix
+    const testUserId = randomUUID() // Proper UUID format
     const testUserEmail = `test4-${Date.now()}@autorev.ai`
     
     // Create user in auth.users (simulate)
@@ -182,7 +183,7 @@ async function test4CompleteFlow() {
         zip: '43068',
         window_text: '9-11am',
         start_ts: '2025-10-06T09:00:00Z',
-        confirmation: 'TEST4-001'
+        confirmation: `TEST4-${Date.now()}`
       })
       .select()
       .single()
