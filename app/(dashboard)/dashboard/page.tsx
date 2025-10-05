@@ -1,4 +1,4 @@
-import { createClient } from '../../../lib/db'
+import { createClient } from '../../../lib/supabase/server'
 import DashboardClient from './components/DashboardClient'
 import PhoneNumberDisplay from './components/PhoneNumberDisplay'
 
@@ -84,15 +84,15 @@ async function getDashboardData(): Promise<DashboardData> {
   const todayISO = today.toISOString()
 
   try {
-    // Get assistant info
+    // Get assistant info (may not exist if setup not completed)
     const { data: assistant, error: assistantError } = await db
       .from('assistants')
       .select('*, vapi_number_id')
       .eq('tenant_id', tenantId)
       .eq('status', 'active')
-      .single()
+      .maybeSingle() // Use maybeSingle() instead of single() to handle no results
     
-    if (assistantError && assistantError.code !== 'PGRST116') {
+    if (assistantError) {
       console.error('Error fetching assistant:', assistantError)
     }
 
