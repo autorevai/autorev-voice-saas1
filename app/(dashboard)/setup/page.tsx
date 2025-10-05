@@ -493,15 +493,29 @@ export default function SetupPage() {
             <div className="bg-gray-50 rounded-lg p-4">
               <h3 className="font-semibold text-gray-900 mb-3">Next Steps:</h3>
               <ul className="space-y-2 text-sm text-gray-700">
+                <li className="flex items-start">
+                  <span className="text-yellow-600 mr-2">!</span>
+                  <span>
+                    <strong>CRITICAL:</strong> Publish assistant in VAPI dashboard
+                    <br />
+                    <a href={`https://dashboard.vapi.ai/assistants/${result.assistantId}`} target="_blank" className="text-blue-600 underline">
+                      Click here to publish
+                    </a>
+                  </span>
+                </li>
                 {result.phoneNumber && (
                   <>
                     <li className="flex items-start">
                       <span className="text-green-600 mr-2">✓</span>
-                      <span>Add this number to your website and business cards</span>
+                      <span>Phone number: {result.phoneNumber}</span>
+                    </li>
+                    <li className="flex items-start">
+                      <span className="text-blue-600 mr-2">→</span>
+                      <span>Test the assistant by calling and booking an appointment</span>
                     </li>
                     <li className="flex items-start">
                       <span className="text-green-600 mr-2">✓</span>
-                      <span>Test the assistant by calling and booking an appointment</span>
+                      <span>Add this number to your website and business cards</span>
                     </li>
                   </>
                 )}
@@ -509,12 +523,6 @@ export default function SetupPage() {
                   <span className="text-green-600 mr-2">✓</span>
                   <span>Check the dashboard to see calls and bookings in real-time</span>
                 </li>
-                {result.phoneNumber && (
-                  <li className="flex items-start">
-                    <span className="text-green-600 mr-2">✓</span>
-                    <span>Share the number with customers - your AI is ready!</span>
-                  </li>
-                )}
               </ul>
             </div>
 

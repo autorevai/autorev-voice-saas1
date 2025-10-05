@@ -1,6 +1,10 @@
+import { config } from 'dotenv';
 import { VapiClient } from '@vapi-ai/server-sdk';
 import { PLAYBOOK_TEMPLATES } from '@/lib/playbooks';
 import type { ProvisioningConfig, ProvisioningResult } from '@/lib/types/provisioning';
+
+// Load environment variables
+config({ path: '.env.local' });
 
 // Validate required env vars (only at runtime, not build time)
 function validateEnvVars() {
@@ -99,10 +103,14 @@ export async function provisionVapiAssistant(
               const dateStr = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
               const phoneName = `${tenantSlug}-${industry}-${dateStr}`;
               
+              // Ensure phone name is within 40 character limit
+              const finalPhoneName = phoneName.length > 40 ? phoneName.substring(0, 40) : phoneName;
+              
               const phone = await vapi.phoneNumbers.create({
                 provider: 'vapi',
                 assistantId: assistant.id,
-                name: phoneName,
+                name: finalPhoneName,
+                numberDesiredAreaCode: '740',
                 fallbackDestination: {
                   type: 'number',
                   number: config.profile.businessHours?.emergencyPhone || '+18445551234'
@@ -110,7 +118,7 @@ export async function provisionVapiAssistant(
               });
               phoneNumber = phone.number;
               console.log('✅ Phone provisioned successfully:', phoneNumber);
-              console.log('📞 Phone name:', phoneName);
+              console.log('📞 Phone name:', finalPhoneName);
             } catch (phoneError: any) {
               console.warn('⚠️  Phone provisioning failed:', phoneError.message);
               phoneProvisioningFailed = true;
