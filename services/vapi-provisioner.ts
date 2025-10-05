@@ -51,37 +51,7 @@ export async function provisionVapiAssistant(
         model: 'nova-2',
         language: 'en',
         smartFormat: true
-      },
-      tools: [
-        {
-          type: 'function',
-          name: 'create_booking',
-          async: false,
-          description: 'Create appointment booking',
-          parameters: {
-            type: 'object',
-            properties: {
-              name: { type: 'string', description: 'Customer full name' },
-              phone: { type: 'string', description: 'Phone number' },
-              address: { type: 'string', description: 'Service address' },
-              service_type: { type: 'string', description: 'Type of service needed' },
-              preferred_time: { type: 'string', description: 'Preferred appointment time' },
-              equipment_info: { type: 'string', description: 'Equipment details' },
-              access_notes: { type: 'string', description: 'Access instructions' }
-            },
-            required: ['name', 'phone', 'address', 'service_type']
-          },
-          server: {
-            url: `${process.env.NEXT_PUBLIC_APP_URL}/api/tools`,
-            headers: {
-              'Content-Type': 'application/json',
-              'x-tool-name': 'create_booking',
-              'x-shared-secret': `Bearer ${process.env.WEBHOOK_SHARED_SECRET}`
-            },
-            timeoutSeconds: 20
-          }
-        }
-      ]
+      }
     });
 
     // 4. Purchase Phone Number
