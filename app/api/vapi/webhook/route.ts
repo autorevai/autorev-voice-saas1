@@ -1,162 +1,208 @@
 // app/api/vapi/webhook/route.ts
-// Production webhook handler - saves duration and transcript to database
+// PRODUCTION-READY VERSION WITH ROBUST LOGGING
 
 import { createClient } from '@/lib/db';
+import { NextRequest, NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
-export async function POST(req: Request) {
+// Helper to log with timestamps
+function log(level: 'INFO' | 'WARN' | 'ERROR', message: string, data?: any) {
+  const timestamp = new Date().toISOString();
+  const logData = data ? JSON.stringify(data, null, 2) : '';
+  console.log(`[${timestamp}] [VAPI_WEBHOOK_${level}] ${message}`, logData);
+}
+
+export async function POST(req: NextRequest) {
+  const startTime = Date.now();
+  
   try {
-    const event = await req.json();
+    // Parse webhook payload
+    const rawBody = await req.text();
+    log('INFO', 'Received webhook', { bodyLength: rawBody.length });
     
-    console.log('VAPI_WEBHOOK_RECEIVED', {
-      timestamp: new Date().toISOString(),
-      event: JSON.stringify(event, null, 2)
+    const event = JSON.parse(rawBody);
+    log('INFO', 'Parsed webhook event', { 
+      type: event?.message?.type,
+      callId: event?.message?.call?.id 
     });
-    
-    // VAPI wraps data in a "message" envelope
+
+    // Extract message and call data
     const message = event?.message || event;
     const messageType = message?.type;
     const call = message?.call;
     const callId = call?.id;
-    
+
     if (!callId) {
-      console.warn('VAPI_WEBHOOK_NO_CALL_ID', { messageType, event });
-      return new Response(JSON.stringify({ received: true }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      log('WARN', 'No call ID in webhook', { messageType, event });
+      return NextResponse.json({ received: true }, { status: 200 });
     }
-    
-    console.log('VAPI_WEBHOOK_EVENT', {
-      type: messageType,
-      callId,
-      timestamp: new Date().toISOString()
-    });
-    
+
+    // Initialize Supabase client
     const supabase = createClient();
-    
+    log('INFO', 'Supabase client created');
+
+    // Get tenant ID (use demo tenant for now)
+    const tenantId = process.env.DEMO_TENANT_ID;
+    if (!tenantId) {
+      log('ERROR', 'DEMO_TENANT_ID not set in environment');
+      return NextResponse.json({ error: 'Configuration error' }, { status: 500 });
+    }
+
+    log('INFO', `Processing webhook type: ${messageType} for call: ${callId}`);
+
     // Handle different webhook types
     switch (messageType) {
       case 'assistant-request': {
-        // Call started - ensure call record exists
-        const { data: existingCall } = await supabase
+        log('INFO', 'Handling assistant-request');
+        
+        // Check if call already exists
+        const { data: existingCall, error: checkError } = await supabase
           .from('calls')
           .select('id')
           .eq('vapi_call_id', callId)
           .single();
-        
+
+        if (checkError && checkError.code !== 'PGRST116') {
+          log('ERROR', 'Error checking existing call', checkError);
+        }
+
         if (!existingCall) {
-          // Find tenant by assistant ID from the call
-          const assistantId = call?.assistantId;
-          if (assistantId) {
-            const { data: assistant } = await supabase
-              .from('assistants')
-              .select('id, tenant_id')
-              .eq('vapi_assistant_id', assistantId)
-              .single();
-            
-            if (assistant) {
-              const { error: insertError } = await supabase.from('calls').insert({
-                tenant_id: assistant.tenant_id,
-                assistant_id: assistant.id,
-                vapi_call_id: callId,
-                started_at: call?.startedAt || new Date().toISOString(),
-                outcome: 'unknown',
-                raw_json: { message, call }
-              });
-              
-              if (insertError) {
-                console.error('VAPI_CALL_INSERT_ERROR', { callId, error: insertError });
-              } else {
-                console.log('VAPI_CALL_CREATED', { 
-                  callId, 
-                  assistantId, 
-                  tenantId: assistant.tenant_id 
-                });
-              }
-            } else {
-              console.warn('VAPI_CALL_NO_ASSISTANT', { callId, assistantId });
-            }
+          log('INFO', 'Creating new call record', { callId, tenantId });
+          
+          const { data: newCall, error: insertError } = await supabase
+            .from('calls')
+            .insert({
+              tenant_id: tenantId,
+              vapi_call_id: callId,
+              started_at: call?.startedAt || new Date().toISOString(),
+              outcome: 'unknown',
+              raw_json: call || {}
+            })
+            .select()
+            .single();
+
+          if (insertError) {
+            log('ERROR', 'Failed to insert call', { error: insertError, callId });
           } else {
-            console.warn('VAPI_CALL_NO_ASSISTANT_ID', { callId });
+            log('INFO', 'Call created successfully', { 
+              dbCallId: newCall.id, 
+              vapiCallId: callId 
+            });
           }
+        } else {
+          log('INFO', 'Call already exists', { callId });
         }
         break;
       }
-      
+
       case 'end-of-call-report': {
-        // Call ended - save duration and transcript
+        log('INFO', 'Handling end-of-call-report');
+        
         const startedAt = message?.startedAt;
         const endedAt = message?.endedAt;
         const durationSec = Math.round(message?.durationSeconds || 0);
-        
         const transcript = message?.transcript || null;
         const summary = message?.summary || null;
         const endedReason = message?.endedReason || null;
-        
-        // Determine outcome based on the call data
-        let outcome = 'unknown';
-        if (endedReason === 'assistant_ended_call') {
-          outcome = 'booked';
-        } else if (endedReason === 'customer_ended_call') {
-          outcome = 'handoff';
-        }
-        
-        // Update call record with duration and transcript
-        const { error } = await supabase
+
+        log('INFO', 'Call ended details', {
+          callId,
+          durationSec,
+          hasTranscript: !!transcript,
+          transcriptLength: transcript?.length || 0,
+          endedReason
+        });
+
+        // Update call with end data
+        const { data: updatedCall, error: updateError } = await supabase
           .from('calls')
           .update({
             ended_at: endedAt || new Date().toISOString(),
             duration_sec: durationSec,
-            outcome: outcome,
-            transcript_url: transcript ? `data:text/plain;base64,${Buffer.from(transcript).toString('base64')}` : null,
-            raw_json: { transcript, summary, endedReason, message, call }
+            transcript_url: transcript 
+              ? `data:text/plain;base64,${Buffer.from(transcript).toString('base64')}` 
+              : null,
+            raw_json: { 
+              ...call,
+              transcript, 
+              summary, 
+              endedReason,
+              fullMessage: message 
+            }
           })
-          .eq('vapi_call_id', callId);
-        
-        if (error) {
-          console.error('VAPI_WEBHOOK_DB_ERROR', { callId, error });
+          .eq('vapi_call_id', callId)
+          .select()
+          .single();
+
+        if (updateError) {
+          log('ERROR', 'Failed to update call', { error: updateError, callId });
         } else {
-          console.log('VAPI_CALL_ENDED', {
-            callId,
-            durationSec,
-            outcome,
-            hasTranscript: !!transcript,
-            transcriptLength: transcript?.length || 0,
-            hasSummary: !!summary,
-            endedReason
+          log('INFO', 'Call updated successfully', {
+            dbCallId: updatedCall.id,
+            vapiCallId: callId,
+            duration: durationSec
           });
         }
         break;
       }
-      
+
       case 'status-update': {
-        // Call status changed
-        console.log('VAPI_CALL_STATUS', {
+        log('INFO', 'Status update received', {
           callId,
           status: message?.status
         });
         break;
       }
-      
+
+      case 'tool-calls': {
+        log('INFO', 'Tool calls received', {
+          callId,
+          toolCount: message?.toolCalls?.length || 0
+        });
+        
+        // Log each tool call for debugging
+        if (message?.toolCalls) {
+          for (const toolCall of message.toolCalls) {
+            log('INFO', 'Tool call details', {
+              name: toolCall.function?.name,
+              args: toolCall.function?.arguments
+            });
+          }
+        }
+        break;
+      }
+
       default: {
-        console.log('VAPI_WEBHOOK_UNKNOWN_TYPE', {
+        log('WARN', 'Unknown webhook type', {
           type: messageType,
-          callId
+          callId,
+          keys: Object.keys(message)
         });
       }
     }
+
+    const duration = Date.now() - startTime;
+    log('INFO', `Webhook processed successfully in ${duration}ms`);
+
+    return NextResponse.json({ 
+      received: true,
+      processed: messageType,
+      callId,
+      duration 
+    }, { status: 200 });
+
+  } catch (error: any) {
+    const duration = Date.now() - startTime;
+    log('ERROR', 'Webhook processing failed', {
+      error: error.message,
+      stack: error.stack,
+      duration
+    });
     
-    return new Response(JSON.stringify({ received: true }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' }
-    });
-  } catch (error) {
-    console.error('VAPI_WEBHOOK_ERROR', error);
-    return new Response(JSON.stringify({ error: 'Invalid webhook' }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return NextResponse.json({ 
+      error: 'Webhook processing failed',
+      message: error.message 
+    }, { status: 500 });
   }
 }
