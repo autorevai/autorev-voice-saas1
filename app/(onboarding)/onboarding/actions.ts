@@ -34,6 +34,7 @@ export async function createTenant(data: { businessName: string; website?: strin
       id: user.id,
       email: user.email!,
       name: user.user_metadata?.full_name || user.email!,
+      tenant_id: tenant.id, // Set tenant_id in users table
     })
 
     if (userError) {
