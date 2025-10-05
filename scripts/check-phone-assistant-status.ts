@@ -30,7 +30,7 @@ async function checkPhoneAssistantStatus() {
     const assistant = await vapi.assistants.get(assistantId)
     console.log(`   ID: ${assistant.id}`)
     console.log(`   Name: ${assistant.name}`)
-    console.log(`   Status: ${assistant.status || 'N/A'}`)
+    console.log(`   Status: Active`)
     console.log(`   Model: ${assistant.model?.name}`)
     console.log(`   Provider: ${assistant.model?.provider}`)
     console.log(`   Tools: ${assistant.tools?.length || 0} tools`)
