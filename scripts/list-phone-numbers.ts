@@ -32,13 +32,19 @@ async function listPhoneNumbers() {
       console.log('   ---')
     })
     
-    // Identify unlabeled numbers
+    // Identify unlabeled numbers (not following our naming convention)
     const unlabeledNumbers = phoneNumbers.filter(phone => 
       !phone.name || 
       phone.name.toLowerCase().includes('untitled') ||
       phone.name.toLowerCase().includes('unlabeled') ||
-      phone.name === ''
+      phone.name === '' ||
+      // Also catch old naming patterns that don't follow our convention
+      (!phone.name.includes('-') && !phone.name.includes('receptionist'))
     )
+    
+    // Show our naming convention
+    console.log(`\n📋 Our naming convention: [tenant-slug]-[industry]-[date]`)
+    console.log(`   Example: anderson-heating-cooling-hvac-2024-01-15`)
     
     console.log(`\n🗑️  Unlabeled phone numbers (${unlabeledNumbers.length}):`)
     console.log('=' .repeat(50))

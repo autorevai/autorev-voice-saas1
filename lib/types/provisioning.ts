@@ -11,6 +11,7 @@ export interface BusinessProfile {
     weekdays: string;
     weekends: string;
     emergency: boolean;
+    emergencyPhone?: string;
   };
   emergencyKeywords: string[];
   routingConfig: {

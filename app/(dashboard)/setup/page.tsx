@@ -37,7 +37,8 @@ export default function SetupPage() {
     businessHours: {
       weekdays: '8am-6pm',
       weekends: 'closed',
-      emergency: false
+      emergency: false,
+      emergencyPhone: ''
     },
     emergencyKeywords: [],
     routingConfig: {}
@@ -70,6 +71,10 @@ export default function SetupPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...formData,
+          businessHours: {
+            ...formData.businessHours,
+            emergencyPhone: businessPhone.trim()
+          },
           businessPhone: businessPhone.trim()
         })
       })

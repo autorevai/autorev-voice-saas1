@@ -93,12 +93,24 @@ export async function provisionVapiAssistant(
             let phoneProvisioningFailed = false;
             
             try {
+              // Create systematic naming convention: [TenantSlug]-[Industry]-[Date]
+              const tenantSlug = config.businessName.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-');
+              const industry = config.profile.industry;
+              const dateStr = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+              const phoneName = `${tenantSlug}-${industry}-${dateStr}`;
+              
               const phone = await vapi.phoneNumbers.create({
                 provider: 'vapi',
-                assistantId: assistant.id
+                assistantId: assistant.id,
+                name: phoneName,
+                fallbackDestination: {
+                  type: 'number',
+                  number: config.profile.businessHours?.emergencyPhone || '+18445551234'
+                }
               });
               phoneNumber = phone.number;
               console.log('✅ Phone provisioned successfully:', phoneNumber);
+              console.log('📞 Phone name:', phoneName);
             } catch (phoneError: any) {
               console.warn('⚠️  Phone provisioning failed:', phoneError.message);
               phoneProvisioningFailed = true;
