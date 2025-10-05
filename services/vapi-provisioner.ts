@@ -158,7 +158,7 @@ export async function provisionVapiAssistant(
             return {
               success: true,
               assistantId: assistant.id,
-              phoneNumber: phoneNumber,
+              phoneNumber: phoneNumber || undefined,
               phoneProvisioningFailed: phoneProvisioningFailed,
               message: phoneNumber 
                 ? 'Assistant created successfully!' 
