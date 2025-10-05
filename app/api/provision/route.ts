@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 5. Save to database
-    const webhookUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001'}/api/vapi/webhook`
+    const webhookUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://autorev-voice-saas1.vercel.app'}/api/vapi/webhook`
     
     const { error: assistantError } = await db.from('assistants').insert({
       tenant_id: userRecord.tenant_id,

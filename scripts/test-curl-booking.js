@@ -1,8 +1,8 @@
 // scripts/test-curl-booking.js
 const fetch = (...a) => import('node-fetch').then(({default: f}) => f(...a));
 (async () => {
-  const base = process.env.PUBLIC_APP_URL;
-  if (!base) throw new Error('Set PUBLIC_APP_URL in Vercel env');
+  const base = process.env.NEXT_PUBLIC_APP_URL;
+  if (!base) throw new Error('Set NEXT_PUBLIC_APP_URL in Vercel env');
   const res = await fetch(`${base}/api/tools`, {
     method: 'POST',
     headers: {

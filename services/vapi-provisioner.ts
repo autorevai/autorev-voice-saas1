@@ -137,7 +137,7 @@ export async function provisionVapiAssistant(
                 numberDesiredAreaCode: '740',
                 // CRITICAL: Set server for call lifecycle webhooks (HTTPS required)
                 server: {
-                  url: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001'}/api/vapi/webhook`,
+                  url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://autorev-voice-saas1.vercel.app'}/api/vapi/webhook`,
                   secret: process.env.WEBHOOK_SHARED_SECRET
                 } as any, // Type assertion to bypass incomplete SDK types
                 fallbackDestination: {
