@@ -100,7 +100,7 @@ async function testWebhook(testCase: TestCase) {
 
     const data = await response.json();
 
-    console.log(`Status: ${response.status} ${response.statusOK ? '✅' : '❌'}`);
+    console.log(`Status: ${response.status} ${response.ok ? '✅' : '❌'}`);
     console.log(`Response:`, JSON.stringify(data, null, 2));
 
     if (response.status === 200) {
