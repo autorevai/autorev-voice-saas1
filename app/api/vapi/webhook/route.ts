@@ -8,6 +8,34 @@ import { getOrCreateRequestId, createLogger } from '@/lib/request-id';
 export const dynamic = 'force-dynamic';
 
 // ========================================
+// WEBHOOK AUTHENTICATION
+// ========================================
+function verifyVapiWebhook(req: NextRequest): boolean {
+  // VAPI sends secret in x-vapi-secret header or Authorization header
+  const vapiSecret = req.headers.get('x-vapi-secret');
+  const authHeader = req.headers.get('authorization');
+  const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+
+  // Also check for x-shared-secret (our custom header)
+  const sharedSecret = req.headers.get('x-shared-secret');
+
+  const providedSecret = vapiSecret || bearerToken || sharedSecret;
+  const expectedSecret = process.env.WEBHOOK_SHARED_SECRET;
+
+  if (!expectedSecret) {
+    console.warn('⚠️ WEBHOOK_SHARED_SECRET not configured - authentication disabled!');
+    return true; // Allow in dev, but warn
+  }
+
+  if (!providedSecret) {
+    console.error('❌ No authentication header provided');
+    return false;
+  }
+
+  return providedSecret === expectedSecret;
+}
+
+// ========================================
 // DYNAMIC TENANT DETECTION
 // ========================================
 async function detectTenant(phoneNumber?: string, assistantId?: string, logger?: any): Promise<string | null> {
@@ -199,27 +227,58 @@ export async function POST(req: NextRequest) {
   const requestId = getOrCreateRequestId(req);
   const log = createLogger(requestId, 'VAPI_WEBHOOK');
 
+  // ========================================
+  // 1. AUTHENTICATE WEBHOOK
+  // ========================================
+  if (!verifyVapiWebhook(req)) {
+    console.error('❌ UNAUTHORIZED VAPI WEBHOOK');
+    log.error('Webhook authentication failed', {
+      headers: Object.fromEntries(req.headers.entries())
+    });
+    return NextResponse.json({
+      error: 'Unauthorized',
+      requestId
+    }, { status: 401 });
+  }
+
   try {
-    // Parse webhook
+    // ========================================
+    // 2. PARSE WEBHOOK PAYLOAD
+    // ========================================
     const rawBody = await req.text();
-    const event = JSON.parse(rawBody);
-    const message = event?.message || event;
-    const messageType = message?.type || event?.type;
+    const payload = JSON.parse(rawBody);
+
+    // VAPI always sends: { message: { type, call, ... } }
+    if (!payload.message || !payload.message.type) {
+      console.error('❌ INVALID WEBHOOK PAYLOAD:', {
+        has_message: !!payload.message,
+        has_type: !!payload.message?.type,
+        top_level_keys: Object.keys(payload)
+      });
+      log.error('Invalid VAPI webhook payload structure', {
+        payload,
+        expected: '{ message: { type, call } }'
+      });
+      return NextResponse.json({
+        error: 'Invalid payload - expected { message: { type, call } }',
+        requestId
+      }, { status: 400 });
+    }
+
+    const message = payload.message;
+    const messageType = message.type;
 
     console.log('📥 WEBHOOK RECEIVED:', messageType);
     log.info('Received webhook', {
       bodyLength: rawBody.length,
-      headers: Object.fromEntries(req.headers.entries())
-    });
-
-    log.info('Parsed webhook', {
       type: messageType,
-      hasMessage: !!event?.message,
-      topLevelKeys: Object.keys(event || {})
+      hasCall: !!message.call
     });
 
-    // Extract call data dynamically
-    const callData = extractCallData(event);
+    // ========================================
+    // 3. EXTRACT CALL DATA
+    // ========================================
+    const callData = extractCallData(payload);
 
     console.log('🔍 CALL DATA:', {
       call_id: callData.callId?.substring(0, 12) + '...',
@@ -237,7 +296,7 @@ export async function POST(req: NextRequest) {
     });
 
     if (!callData.callId) {
-      log.warn('No call ID found in webhook', { messageType, event });
+      log.warn('No call ID found in webhook', { messageType, payload });
       return NextResponse.json({ received: true, requestId }, { status: 200 });
     }
 
@@ -398,12 +457,32 @@ export async function POST(req: NextRequest) {
         }
       };
 
-      // DEFENSIVE: Check if call exists first (in case assistant-request was missed)
+      // ========================================
+      // IDEMPOTENCY: Check if already processed
+      // ========================================
       const { data: existingCall } = await supabase
         .from('calls')
-        .select('id')
+        .select('id, ended_at')
         .eq('vapi_call_id', callData.callId)
         .single();
+
+      // If call already has ended_at, this is a retry - skip processing
+      if (existingCall?.ended_at) {
+        console.log('✅ CALL ALREADY PROCESSED (retry detected):', {
+          call_id: callData.callId,
+          db_id: existingCall.id
+        });
+        log.info('Call already processed - idempotent retry detected', {
+          callId: callData.callId,
+          dbId: existingCall.id,
+          existingEndedAt: existingCall.ended_at
+        });
+        return NextResponse.json({
+          received: true,
+          status: 'already_processed',
+          requestId
+        }, { status: 200 });
+      }
 
       if (!existingCall) {
         log.warn('Call record does not exist - creating now (assistant-request may have been missed)', {
@@ -470,13 +549,14 @@ export async function POST(req: NextRequest) {
         }, { status: 200 });
       }
 
-      // Call exists - update it normally
+      // Call exists - update it with end-of-call data
       const { data: updatedCall, error: updateError} = await supabase
         .from('calls')
         .update({
           ended_at: callData.endedAt || new Date().toISOString(),
           duration_sec: callData.duration,
           transcript_url: transcriptUrl,
+          outcome: 'completed',
           raw_json: rawJson
         })
         .eq('vapi_call_id', callData.callId)
@@ -536,6 +616,7 @@ export async function POST(req: NextRequest) {
     if (messageType === 'tool-calls') {
       const toolNames = message?.toolCalls?.map((t: any) => t.function?.name) || [];
 
+      console.log('🔧 TOOL CALLS:', toolNames.join(', '));
       log.info('Tool calls received', {
         callId: callData.callId,
         toolCount: message?.toolCalls?.length || 0,
@@ -561,13 +642,71 @@ export async function POST(req: NextRequest) {
     }
 
     // ========================================
+    // HANDLE: hang (Call hung up before end-of-call-report)
+    // ========================================
+    if (messageType === 'hang') {
+      console.log('📴 CALL HUNG UP:', {
+        call_id: callData.callId?.substring(0, 12) + '...'
+      });
+      log.info('Call hung up', {
+        callId: callData.callId,
+        reason: message?.reason
+      });
+
+      // Update call record if it exists
+      const { data: existingCall } = await supabase
+        .from('calls')
+        .select('id, ended_at')
+        .eq('vapi_call_id', callData.callId)
+        .single();
+
+      if (existingCall && !existingCall.ended_at) {
+        await supabase
+          .from('calls')
+          .update({
+            ended_at: new Date().toISOString(),
+            outcome: 'abandoned',
+            raw_json: { hang_reason: message?.reason }
+          })
+          .eq('vapi_call_id', callData.callId);
+
+        console.log('✅ DB CALL UPDATED (hung up)');
+      }
+
+      const duration = Date.now() - startTime;
+      return NextResponse.json({
+        received: true,
+        requestId,
+        duration
+      }, { status: 200 });
+    }
+
+    // ========================================
+    // HANDLE: Informational events (conversation-update, transcript, speech-update)
+    // ========================================
+    if (['conversation-update', 'transcript', 'speech-update', 'model-output', 'user-interrupted'].includes(messageType)) {
+      log.info('Informational event received', {
+        type: messageType,
+        callId: callData.callId
+      });
+
+      const duration = Date.now() - startTime;
+      return NextResponse.json({
+        received: true,
+        requestId,
+        duration
+      }, { status: 200 });
+    }
+
+    // ========================================
     // UNKNOWN TYPE
     // ========================================
+    console.warn('⚠️ UNKNOWN WEBHOOK TYPE:', messageType);
     log.warn('Unknown webhook type', {
       type: messageType,
       callId: callData.callId,
       keys: Object.keys(message || {}),
-      availableTypes: ['assistant-request', 'end-of-call-report', 'status-update', 'tool-calls']
+      handledTypes: ['assistant-request', 'end-of-call-report', 'status-update', 'tool-calls', 'hang', 'conversation-update', 'transcript', 'speech-update']
     });
 
     const duration = Date.now() - startTime;
