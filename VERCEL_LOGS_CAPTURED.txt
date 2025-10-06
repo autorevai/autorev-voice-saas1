@@ -1,0 +1,117 @@
+Vercel Logs - autorev-voice-saas1
+Deployment: https://autorev-voice-saas1-n2ljd05lx-chris-diyannis-projects.vercel.app
+Date: October 5, 2025
+Time: 20:03:01 - 20:04:57
+
+=== LOG ENTRIES ===
+
+20:04:47.52  ℹ️  GET  ---  autorev-voice-saas1.vercel.app  ƒ  /dashboard
+------------------------------------------------------------------------
+[Supabase Client] Initialized successfully: {
+  urlPrefix: 'https://mzkcaioimmtwawhagrwc.s',
+  keyPrefix: 'eyJhbGciOi',
+  isBuildTime: true
+}
+
+20:04:47.52  ℹ️  GET  ---  autorev-voice-saas1.vercel.app  ƒ  /dashboard
+------------------------------------------------------------------------
+[Supabase Client] Initialized successfully: {
+  urlPrefix: 'https://mzkcaioimmtwawhagrwc.s',
+  keyPrefix: 'eyJhbGciOi',
+  isBuildTime: true
+}
+
+20:04:49.14  ℹ️  GET  ---  autorev-voice-saas1.vercel.app  ƒ  /dashboard
+------------------------------------------------------------------------
+[Supabase Client] Initialized successfully: {
+  urlPrefix: 'https://mzkcaioimmtwawhagrwc.s',
+  keyPrefix: 'eyJhbGciOi',
+  isBuildTime: true
+}
+
+20:04:49.14  ℹ️  GET  ---  autorev-voice-saas1.vercel.app  ƒ  /dashboard
+------------------------------------------------------------------------
+[Supabase Client] Initialized successfully: {
+  urlPrefix: 'https://mzkcaioimmtwawhagrwc.s',
+  keyPrefix: 'eyJhbGciOi',
+  isBuildTime: true
+}
+
+20:04:57.26  ℹ️  GET  ---  autorev-voice-saas1.vercel.app  ƒ  /dashboard
+------------------------------------------------------------------------
+[Supabase Client] Initialized successfully: {
+  urlPrefix: 'https://mzkcaioimmtwawhagrwc.s',
+  keyPrefix: 'eyJhbGciOi',
+  isBuildTime: true
+}
+
+20:04:57.27  ℹ️  GET  ---  autorev-voice-saas1.vercel.app  ƒ  /dashboard
+------------------------------------------------------------------------
+[Supabase Client] Initialized successfully: {
+  urlPrefix: 'https://mzkcaioimmtwawhagrwc.s',
+  keyPrefix: 'eyJhbGciOi',
+  isBuildTime: true
+}
+
+20:04:57.27  ℹ️  GET  ---  autorev-voice-saas1.vercel.app  ƒ  /dashboard
+------------------------------------------------------------------------
+[Supabase Client] Initialized successfully: {
+  urlPrefix: 'https://mzkcaioimmtwawhagrwc.s',
+  keyPrefix: 'eyJhbGciOi',
+  isBuildTime: true
+}
+
+20:04:57.27  ℹ️  GET  ---  autorev-voice-saas1.vercel.app  ƒ  /dashboard
+------------------------------------------------------------------------
+[Supabase Client] Initialized successfully: {
+  urlPrefix: 'https://mzkcaioimmtwawhagrwc.s',
+  keyPrefix: 'eyJhbGciOi',
+  isBuildTime: true
+}
+
+=== ANALYSIS ===
+
+1. DEPLOYMENT STATUS: ✅ SUCCESSFUL
+   - Latest deployment is running without errors
+   - No runtime exceptions or crashes
+
+2. SUPABASE CONNECTION: ✅ WORKING
+   - Client initializing successfully on every request
+   - URL and key prefixes are correct
+   - No connection errors
+
+3. DASHBOARD ACCESS: ✅ FUNCTIONAL
+   - Multiple successful GET requests to /dashboard
+   - No 404 or 500 errors
+   - Consistent response times
+
+4. MISSING LOGS: ⚠️ NO ACTIVITY YET
+   - No VAPI_WEBHOOK logs (no webhook calls received)
+   - No TOOLS_API logs (no tool calls made)
+   - No SUPABASE_CLIENT detailed logs (our new logging not triggered yet)
+
+5. EXPECTED LOG PATTERNS (when active):
+   - [VAPI_WEBHOOK_INFO] Received webhook
+   - [TOOLS_API_INFO] Processing tool call
+   - [SUPABASE_CLIENT_INFO] Creating Supabase client
+
+=== RECOMMENDATIONS ===
+
+1. Test the system by making a VAPI call to trigger webhook logs
+2. Use the test-db endpoint to generate database operation logs
+3. Monitor real-time logs with: vercel logs --follow
+4. Check for webhook configuration in VAPI dashboard
+
+=== COMMANDS TO GET MORE LOGS ===
+
+# Real-time monitoring
+vercel logs https://autorev-voice-saas1-n2ljd05lx-chris-diyannis-projects.vercel.app --follow
+
+# Filter for specific log types
+vercel logs <deployment-url> | grep "VAPI_WEBHOOK"
+vercel logs <deployment-url> | grep "TOOLS_API"
+vercel logs <deployment-url> | grep "SUPABASE_CLIENT"
+
+# Save filtered logs
+vercel logs <deployment-url> | grep "ERROR" > error_logs.txt
+vercel logs <deployment-url> | grep "VAPI_WEBHOOK" > webhook_logs.txt
