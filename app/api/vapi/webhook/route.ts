@@ -80,6 +80,10 @@ function extractCallData(event: any): {
   transcript: string | null;
   summary: string | null;
   endedReason: string | null;
+  cost: number | null;
+  analysis: {
+    successEvaluation?: string;
+  };
   customer: {
     phone?: string;
     name?: string;
@@ -88,6 +92,7 @@ function extractCallData(event: any): {
   // Handle multiple VAPI webhook formats
   const message = event?.message || event;
   const call = message?.call || event?.call || {};
+  const artifact = message?.artifact || event?.artifact || {};
 
   // Extract call metadata
   const callId = call?.id || message?.callId || event?.callId || null;
@@ -100,6 +105,7 @@ function extractCallData(event: any): {
     call?.customer?.number ||
     call?.customerNumber ||
     message?.phoneNumber ||
+    event?.phoneNumber?.number ||
     null;
 
   // Extract customer info from call object
@@ -107,31 +113,64 @@ function extractCallData(event: any): {
     call?.customer?.number ||
     call?.customer?.phone ||
     call?.phoneNumber?.number ||
+    event?.customer?.number ||
     null;
 
   const customerName =
     call?.customer?.name ||
     call?.customerName ||
+    event?.customer?.name ||
     null;
 
   // Extract timestamps
-  const startedAt = message?.startedAt || call?.startedAt || event?.startedAt || null;
+  const startedAt = message?.startedAt || call?.startedAt || call?.createdAt || event?.startedAt || null;
   const endedAt = message?.endedAt || call?.endedAt || event?.endedAt || null;
 
   // Calculate duration
   let duration = null;
   if (message?.durationSeconds) {
     duration = Math.round(message.durationSeconds);
+  } else if (call?.duration) {
+    duration = Math.round(call.duration);
   } else if (startedAt && endedAt) {
     const start = new Date(startedAt).getTime();
     const end = new Date(endedAt).getTime();
     duration = Math.round((end - start) / 1000);
   }
 
-  // Extract conversation data
-  const transcript = message?.transcript || call?.transcript || null;
-  const summary = message?.summary || call?.summary || null;
-  const endedReason = message?.endedReason || call?.endedReason || null;
+  // Extract conversation data - try multiple locations
+  let transcript = null;
+  if (message?.transcript) {
+    transcript = message.transcript;
+  } else if (artifact?.transcript) {
+    transcript = artifact.transcript;
+  } else if (artifact?.messages) {
+    // Build transcript from messages array
+    const messages = artifact.messages
+      .filter((m: any) => m.role === 'user' || m.role === 'bot' || m.role === 'assistant')
+      .map((m: any) => `${m.role === 'user' ? 'Customer' : 'Assistant'}: ${m.message || m.content || ''}`)
+      .join('\n\n');
+    if (messages) transcript = messages;
+  }
+
+  const summary = message?.summary || artifact?.summary || call?.summary || null;
+  const endedReason = message?.endedReason || call?.endedReason || event?.endedReason || null;
+
+  // Extract cost and analysis
+  const cost = call?.cost || message?.cost || 0;
+  const analysis = {
+    successEvaluation: artifact?.successEvaluation || message?.analysis?.successEvaluation || null
+  };
+
+  console.log('🔍 EXTRACTED DATA:', {
+    has_transcript: !!transcript,
+    transcript_length: transcript?.length || 0,
+    has_summary: !!summary,
+    duration,
+    ended_reason: endedReason,
+    cost,
+    customer_phone: customerPhone
+  });
 
   return {
     callId,
@@ -143,6 +182,8 @@ function extractCallData(event: any): {
     transcript,
     summary,
     endedReason,
+    cost,
+    analysis,
     customer: {
       phone: customerPhone,
       name: customerName
@@ -161,14 +202,15 @@ export async function POST(req: NextRequest) {
   try {
     // Parse webhook
     const rawBody = await req.text();
+    const event = JSON.parse(rawBody);
+    const message = event?.message || event;
+    const messageType = message?.type || event?.type;
+
+    console.log('📥 WEBHOOK RECEIVED:', messageType);
     log.info('Received webhook', {
       bodyLength: rawBody.length,
       headers: Object.fromEntries(req.headers.entries())
     });
-
-    const event = JSON.parse(rawBody);
-    const message = event?.message || event;
-    const messageType = message?.type || event?.type;
 
     log.info('Parsed webhook', {
       type: messageType,
@@ -178,6 +220,13 @@ export async function POST(req: NextRequest) {
 
     // Extract call data dynamically
     const callData = extractCallData(event);
+
+    console.log('🔍 CALL DATA:', {
+      call_id: callData.callId?.substring(0, 12) + '...',
+      type: messageType,
+      duration: callData.duration || 'n/a',
+      has_transcript: !!callData.transcript
+    });
 
     log.info('Extracted call data', {
       callId: callData.callId,
@@ -201,6 +250,11 @@ export async function POST(req: NextRequest) {
     );
 
     if (!tenantId) {
+      console.error('❌ TENANT NOT FOUND:', {
+        call_id: callData.callId,
+        assistant: callData.assistantId,
+        phone: callData.phoneNumber
+      });
       log.error('Could not determine tenant for call', {
         callId: callData.callId,
         phoneNumber: callData.phoneNumber,
@@ -213,6 +267,7 @@ export async function POST(req: NextRequest) {
       }, { status: 200 });
     }
 
+    console.log('🏢 TENANT DETECTED:', tenantId.substring(0, 8) + '...');
     log.info(`Processing ${messageType} for tenant ${tenantId}`, {
       callId: callData.callId,
       tenantId
@@ -222,6 +277,7 @@ export async function POST(req: NextRequest) {
     // HANDLE: assistant-request (Call Start)
     // ========================================
     if (messageType === 'assistant-request') {
+      console.log('📞 CALL STARTING...');
       log.info('Handling assistant-request', {
         callId: callData.callId,
         tenantId
@@ -252,18 +308,34 @@ export async function POST(req: NextRequest) {
             assistant_id: assistantDbId,
             vapi_call_id: callData.callId,
             started_at: callData.startedAt || new Date().toISOString(),
-            outcome: 'unknown',
-            raw_json: { event, callData }
+            outcome: 'in_progress',
+            raw_json: {
+              call_id: callData.callId,
+              assistant_id: callData.assistantId,
+              phone_number: callData.phoneNumber,
+              customer: {
+                phone: callData.customer.phone,
+                name: callData.customer.name
+              },
+              started_at: callData.startedAt,
+              status: 'started'
+            }
           })
           .select()
           .single();
 
         if (insertError) {
+          console.error('❌ DB CALL INSERT FAILED:', insertError.message);
           log.error('Failed to create call', {
             error: insertError.message,
             callId: callData.callId
           });
         } else {
+          console.log('✅ DB CALL CREATED:', {
+            id: newCall.id,
+            tenant: tenantId,
+            call_id: callData.callId
+          });
           log.info('Call created successfully', {
             dbCallId: newCall.id,
             vapiCallId: callData.callId,
@@ -286,6 +358,10 @@ export async function POST(req: NextRequest) {
     // HANDLE: end-of-call-report (Call End)
     // ========================================
     if (messageType === 'end-of-call-report') {
+      console.log('📴 CALL ENDED:', {
+        duration: callData.duration + 's',
+        transcript: callData.transcript ? callData.transcript.length + ' chars' : 'none'
+      });
       log.info('Handling end-of-call-report', {
         callId: callData.callId,
         duration: callData.duration,
@@ -298,18 +374,103 @@ export async function POST(req: NextRequest) {
         ? `data:text/plain;base64,${Buffer.from(callData.transcript).toString('base64')}`
         : null;
 
-      // Build minimal raw_json to avoid size limits
+      // Build clean metadata for raw_json (keep it under 1MB)
       const rawJson = {
-        callId: callData.callId,
-        assistantId: callData.assistantId,
-        duration: callData.duration,
-        endedReason: callData.endedReason,
+        call_id: callData.callId,
+        assistant_id: callData.assistantId,
+        duration_sec: callData.duration,
+        ended_reason: callData.endedReason,
         summary: callData.summary,
-        // Don't include full transcript in raw_json (it's in transcript_url)
-        hasTranscript: !!callData.transcript,
-        transcriptLength: callData.transcript?.length || 0
+        cost: callData.cost,
+        success_evaluation: callData.analysis.successEvaluation,
+        customer: {
+          phone: callData.customer.phone,
+          name: callData.customer.name
+        },
+        transcript: {
+          has_transcript: !!callData.transcript,
+          length: callData.transcript?.length || 0,
+          stored_in: 'transcript_url'
+        },
+        timestamps: {
+          started_at: callData.startedAt,
+          ended_at: callData.endedAt
+        }
       };
 
+      // DEFENSIVE: Check if call exists first (in case assistant-request was missed)
+      const { data: existingCall } = await supabase
+        .from('calls')
+        .select('id')
+        .eq('vapi_call_id', callData.callId)
+        .single();
+
+      if (!existingCall) {
+        log.warn('Call record does not exist - creating now (assistant-request may have been missed)', {
+          callId: callData.callId
+        });
+
+        // Look up assistant DB ID if we have VAPI assistant ID
+        let assistantDbId = null;
+        if (callData.assistantId) {
+          const { data: assistant } = await supabase
+            .from('assistants')
+            .select('id')
+            .eq('vapi_assistant_id', callData.assistantId)
+            .single();
+          assistantDbId = assistant?.id || null;
+        }
+
+        // Create the call record with all end-of-call data
+        const { data: newCall, error: insertError } = await supabase
+          .from('calls')
+          .insert({
+            tenant_id: tenantId,
+            assistant_id: assistantDbId,
+            vapi_call_id: callData.callId,
+            started_at: callData.startedAt || new Date(Date.now() - (callData.duration || 0) * 1000).toISOString(),
+            ended_at: callData.endedAt || new Date().toISOString(),
+            duration_sec: callData.duration,
+            transcript_url: transcriptUrl,
+            outcome: 'completed',
+            raw_json: rawJson
+          })
+          .select()
+          .single();
+
+        if (insertError) {
+          console.error('❌ DB CALL INSERT FAILED (end-of-call):', insertError.message);
+          log.error('Failed to create call during end-of-call-report', {
+            error: insertError.message,
+            code: insertError.code,
+            details: insertError.details,
+            hint: insertError.hint,
+            callId: callData.callId
+          });
+        } else {
+          console.log('✅ DB CALL CREATED (end-of-call):', {
+            id: newCall.id,
+            tenant: tenantId,
+            duration: callData.duration,
+            has_transcript: !!callData.transcript
+          });
+          log.info('Call created successfully from end-of-call-report', {
+            dbCallId: newCall.id,
+            vapiCallId: callData.callId,
+            tenantId
+          });
+        }
+
+        const duration = Date.now() - startTime;
+        return NextResponse.json({
+          received: true,
+          created: true,
+          requestId,
+          duration
+        }, { status: 200 });
+      }
+
+      // Call exists - update it normally
       const { data: updatedCall, error: updateError} = await supabase
         .from('calls')
         .update({
@@ -323,6 +484,7 @@ export async function POST(req: NextRequest) {
         .single();
 
       if (updateError) {
+        console.error('❌ DB CALL UPDATE FAILED:', updateError.message);
         log.error('Failed to update call', {
           error: updateError.message,
           code: updateError.code,
@@ -331,6 +493,11 @@ export async function POST(req: NextRequest) {
           callId: callData.callId
         });
       } else {
+        console.log('✅ DB CALL UPDATED:', {
+          id: updatedCall.id,
+          duration: callData.duration,
+          transcript_length: callData.transcript?.length || 0
+        });
         log.info('Call updated successfully', {
           dbCallId: updatedCall.id,
           vapiCallId: callData.callId,

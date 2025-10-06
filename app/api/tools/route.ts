@@ -10,6 +10,9 @@ export async function POST(req: NextRequest) {
   const log = createLogger(requestId, 'TOOLS_API');
 
   try {
+    const tool = req.headers.get('x-tool-name') || '';
+    console.log('🔧 TOOL CALLED:', tool || 'unknown');
+
     // Log incoming request
     log.info('Tools API request received', {
       url: req.url,
@@ -19,13 +22,13 @@ export async function POST(req: NextRequest) {
 
     // Verify auth
     if (!authorized(req)) {
-      log.warn('Unauthorized request', { 
-        headers: Object.fromEntries(req.headers.entries()) 
+      console.error('❌ UNAUTHORIZED TOOL REQUEST');
+      log.warn('Unauthorized request', {
+        headers: Object.fromEntries(req.headers.entries())
       });
       return NextResponse.json({ success: false, error: 'unauthorized', requestId }, { status: 401 });
     }
 
-    const tool = req.headers.get('x-tool-name') || '';
     const args = await req.json().catch(() => ({}));
 
     // Extract call ID from VAPI message format or headers
@@ -149,12 +152,18 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    log.info('Booking created successfully', { 
+    console.log('✅ DB BOOKING CREATED:', {
+      id: booking.id,
+      confirmation: booking.confirmation,
+      customer: sanitized.name,
+      time: sanitized.preferred_time
+    });
+    log.info('Booking created successfully', {
       bookingId: booking.id,
       confirmation: booking.confirmation,
       callId
     });
-    
+
     // Log tool result (only if we have a valid call_id)
     if (callId) {
       try {
@@ -165,8 +174,10 @@ export async function POST(req: NextRequest) {
           response_json: { confirmation, booking_id: booking.id },
           success: true
         });
+        console.log('✅ DB TOOL_RESULT LOGGED:', { tool: 'create_booking', call_id: callId });
         log.info('Tool result logged', { tool: 'create_booking', callId });
       } catch (toolError: any) {
+        console.error('❌ DB TOOL_RESULT FAILED:', toolError.message);
         log.warn('Failed to log tool result', {
           error: toolError.message,
           tool: 'create_booking',
