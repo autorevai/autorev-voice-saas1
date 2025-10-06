@@ -3,30 +3,26 @@
 
 import { createClient } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
+import { getOrCreateRequestId, createLogger } from '@/lib/request-id';
 
 export const dynamic = 'force-dynamic';
 
-// Helper to log with timestamps
-function log(level: 'INFO' | 'WARN' | 'ERROR', message: string, data?: any) {
-  const timestamp = new Date().toISOString();
-  const logData = data ? JSON.stringify(data, null, 2) : '';
-  console.log(`[${timestamp}] [VAPI_WEBHOOK_${level}] ${message}`, logData);
-}
-
 export async function POST(req: NextRequest) {
   const startTime = Date.now();
+  const requestId = getOrCreateRequestId(req);
+  const log = createLogger(requestId, 'VAPI_WEBHOOK');
   
   try {
     // Parse webhook payload
     const rawBody = await req.text();
-    log('INFO', 'Received webhook', { 
+    log.info('Received webhook', { 
       bodyLength: rawBody.length,
       headers: Object.fromEntries(req.headers.entries()),
       url: req.url
     });
     
     const event = JSON.parse(rawBody);
-    log('INFO', 'Parsed webhook event', { 
+    log.info('Parsed webhook event', { 
       type: event?.message?.type,
       callId: event?.message?.call?.id,
       fullPayload: event
@@ -39,27 +35,27 @@ export async function POST(req: NextRequest) {
     const callId = call?.id;
 
     if (!callId) {
-      log('WARN', 'No call ID in webhook', { messageType, event });
-      return NextResponse.json({ received: true }, { status: 200 });
+      log.warn('No call ID in webhook', { messageType, event });
+      return NextResponse.json({ received: true, requestId }, { status: 200 });
     }
 
     // Initialize Supabase client
     const supabase = createClient();
-    log('INFO', 'Supabase client created');
+    log.info('Supabase client created');
 
     // Get tenant ID (use demo tenant for now)
     const tenantId = process.env.DEMO_TENANT_ID;
     if (!tenantId) {
-      log('ERROR', 'DEMO_TENANT_ID not set in environment');
-      return NextResponse.json({ error: 'Configuration error' }, { status: 500 });
+      log.error('DEMO_TENANT_ID not set in environment');
+      return NextResponse.json({ error: 'Configuration error', requestId }, { status: 500 });
     }
 
-    log('INFO', `Processing webhook type: ${messageType} for call: ${callId}`);
+    log.info(`Processing webhook type: ${messageType} for call: ${callId}`);
 
     // Handle different webhook types
     switch (messageType) {
       case 'assistant-request': {
-        log('INFO', 'Handling assistant-request');
+        log.info('Handling assistant-request');
         
         // Check if call already exists
         const { data: existingCall, error: checkError } = await supabase
@@ -69,11 +65,11 @@ export async function POST(req: NextRequest) {
           .single();
 
         if (checkError && checkError.code !== 'PGRST116') {
-          log('ERROR', 'Error checking existing call', checkError);
+          log.error('Error checking existing call', checkError);
         }
 
         if (!existingCall) {
-          log('INFO', 'Creating new call record', { callId, tenantId });
+          log.info('Creating new call record', { callId, tenantId });
           
           const { data: newCall, error: insertError } = await supabase
             .from('calls')
@@ -88,30 +84,29 @@ export async function POST(req: NextRequest) {
             .single();
 
           if (insertError) {
-            log('ERROR', 'Failed to insert call', { error: insertError, callId });
+            log.error('Failed to insert call', { error: insertError, callId });
           } else {
-            log('INFO', 'Call created successfully', { 
+            log.info('Call created successfully', { 
               dbCallId: newCall.id, 
               vapiCallId: callId 
             });
           }
         } else {
-          log('INFO', 'Call already exists', { callId });
+          log.info('Call already exists', { callId });
         }
         break;
       }
 
       case 'end-of-call-report': {
-        log('INFO', 'Handling end-of-call-report');
-        
-        const startedAt = message?.startedAt;
+        log.info('Handling end-of-call-report');
+
         const endedAt = message?.endedAt;
         const durationSec = Math.round(message?.durationSeconds || 0);
         const transcript = message?.transcript || null;
         const summary = message?.summary || null;
         const endedReason = message?.endedReason || null;
 
-        log('INFO', 'Call ended details', {
+        log.info('Call ended details', {
           callId,
           durationSec,
           hasTranscript: !!transcript,
@@ -141,9 +136,9 @@ export async function POST(req: NextRequest) {
           .single();
 
         if (updateError) {
-          log('ERROR', 'Failed to update call', { error: updateError, callId });
+          log.error('Failed to update call', { error: updateError, callId });
         } else {
-          log('INFO', 'Call updated successfully', {
+          log.info('Call updated successfully', {
             dbCallId: updatedCall.id,
             vapiCallId: callId,
             duration: durationSec
@@ -153,7 +148,7 @@ export async function POST(req: NextRequest) {
       }
 
       case 'status-update': {
-        log('INFO', 'Status update received', {
+        log.info('Status update received', {
           callId,
           status: message?.status
         });
@@ -161,7 +156,7 @@ export async function POST(req: NextRequest) {
       }
 
       case 'tool-calls': {
-        log('INFO', 'Tool calls received', {
+        log.info('Tool calls received', {
           callId,
           toolCount: message?.toolCalls?.length || 0
         });
@@ -169,7 +164,7 @@ export async function POST(req: NextRequest) {
         // Log each tool call for debugging
         if (message?.toolCalls) {
           for (const toolCall of message.toolCalls) {
-            log('INFO', 'Tool call details', {
+            log.info('Tool call details', {
               name: toolCall.function?.name,
               args: toolCall.function?.arguments
             });
@@ -179,7 +174,7 @@ export async function POST(req: NextRequest) {
       }
 
       default: {
-        log('WARN', 'Unknown webhook type', {
+        log.warn('Unknown webhook type', {
           type: messageType,
           callId,
           keys: Object.keys(message)
@@ -188,26 +183,28 @@ export async function POST(req: NextRequest) {
     }
 
     const duration = Date.now() - startTime;
-    log('INFO', `Webhook processed successfully in ${duration}ms`);
+    log.info(`Webhook processed successfully in ${duration}ms`);
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       received: true,
       processed: messageType,
       callId,
-      duration 
+      duration,
+      requestId
     }, { status: 200 });
 
   } catch (error: any) {
     const duration = Date.now() - startTime;
-    log('ERROR', 'Webhook processing failed', {
+    log.error('Webhook processing failed', {
       error: error.message,
       stack: error.stack,
       duration
     });
     
-    return NextResponse.json({ 
+    return NextResponse.json({
       error: 'Webhook processing failed',
-      message: error.message 
+      message: error.message,
+      requestId
     }, { status: 500 });
   }
 }
