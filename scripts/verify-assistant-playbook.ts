@@ -63,13 +63,14 @@ async function verifyAssistantPlaybook() {
                content.includes('REGULAR SERVICE'))
       },
       {
-        label: 'Caller ID auto-use',
-        test: content.includes('{{customer.number}}') ||
-              content.includes('caller ID')
+        label: 'Asks for phone number',
+        test: content.includes('What\'s the best phone number') ||
+              content.includes('ask for their phone number')
       },
       {
         label: 'Digit-by-digit phone reading',
         test: content.includes('digit by digit') ||
+              content.includes('digit-by-digit') ||
               content.includes('seven four zero')
       }
     ];
