@@ -298,19 +298,25 @@ export async function POST(req: NextRequest) {
         ? `data:text/plain;base64,${Buffer.from(callData.transcript).toString('base64')}`
         : null;
 
-      const { data: updatedCall, error: updateError } = await supabase
+      // Build minimal raw_json to avoid size limits
+      const rawJson = {
+        callId: callData.callId,
+        assistantId: callData.assistantId,
+        duration: callData.duration,
+        endedReason: callData.endedReason,
+        summary: callData.summary,
+        // Don't include full transcript in raw_json (it's in transcript_url)
+        hasTranscript: !!callData.transcript,
+        transcriptLength: callData.transcript?.length || 0
+      };
+
+      const { data: updatedCall, error: updateError} = await supabase
         .from('calls')
         .update({
           ended_at: callData.endedAt || new Date().toISOString(),
           duration_sec: callData.duration,
           transcript_url: transcriptUrl,
-          raw_json: {
-            event,
-            callData,
-            transcript: callData.transcript,
-            summary: callData.summary,
-            endedReason: callData.endedReason
-          }
+          raw_json: rawJson
         })
         .eq('vapi_call_id', callData.callId)
         .select()
@@ -319,6 +325,9 @@ export async function POST(req: NextRequest) {
       if (updateError) {
         log.error('Failed to update call', {
           error: updateError.message,
+          code: updateError.code,
+          details: updateError.details,
+          hint: updateError.hint,
           callId: callData.callId
         });
       } else {

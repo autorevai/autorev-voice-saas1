@@ -16,23 +16,47 @@ export function validatePhone(phone: string): ValidationResult {
     return { valid: false, error: 'Phone number is required' };
   }
 
-  // Remove all non-digit characters except +
-  const cleaned = phone.replace(/[^\d+]/g, '');
+  const trimmed = phone.trim();
 
-  // Check if it's a valid length (10-15 digits)
+  // Remove all non-digit characters except +
+  const cleaned = trimmed.replace(/[^\d+]/g, '');
+
+  // Check if it's a valid length (7-15 digits) - relaxed for voice AI
   const digitsOnly = cleaned.replace(/\+/g, '');
-  if (digitsOnly.length < 10 || digitsOnly.length > 15) {
-    return { valid: false, error: 'Phone number must be 10-15 digits' };
+
+  if (digitsOnly.length < 7) {
+    return { valid: false, error: `Phone number too short: ${trimmed} (${digitsOnly.length} digits)` };
+  }
+
+  if (digitsOnly.length > 15) {
+    return { valid: false, error: `Phone number too long: ${trimmed} (${digitsOnly.length} digits)` };
   }
 
   // Ensure + is only at the start if present
   if (cleaned.includes('+') && !cleaned.startsWith('+')) {
-    return { valid: false, error: 'Invalid phone number format' };
+    return { valid: false, error: 'Invalid phone number format (+ must be at start)' };
+  }
+
+  // Format appropriately
+  let formatted = cleaned;
+  if (!formatted.startsWith('+')) {
+    // If 10 digits, assume US
+    if (digitsOnly.length === 10) {
+      formatted = `+1${digitsOnly}`;
+    }
+    // If 11 digits starting with 1, assume US with country code
+    else if (digitsOnly.length === 11 && digitsOnly.startsWith('1')) {
+      formatted = `+${digitsOnly}`;
+    }
+    // Otherwise just add +
+    else {
+      formatted = `+${digitsOnly}`;
+    }
   }
 
   return {
     valid: true,
-    sanitized: cleaned.startsWith('+') ? cleaned : `+1${digitsOnly}`
+    sanitized: formatted
   };
 }
 
