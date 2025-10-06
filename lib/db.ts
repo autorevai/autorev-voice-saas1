@@ -1,17 +1,55 @@
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 
+// Helper to log with timestamps
+function log(level: 'INFO' | 'WARN' | 'ERROR', message: string, data?: any) {
+  const timestamp = new Date().toISOString();
+  const logData = data ? JSON.stringify(data, null, 2) : '';
+  console.log(`[${timestamp}] [SUPABASE_CLIENT_${level}] ${message}`, logData);
+}
+
 export function createClient() {
-  // Use service_role key for server-side operations that bypass RLS
-  // Use anon key for client-side operations that respect RLS policies
-  const supabaseUrl = process.env.SUPABASE_URL!
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+  const startTime = Date.now();
   
-  return createSupabaseClient(supabaseUrl, supabaseServiceKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
-    }
-  })
+  try {
+    // Use service_role key for server-side operations that bypass RLS
+    // Use anon key for client-side operations that respect RLS policies
+    const supabaseUrl = process.env.SUPABASE_URL!
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+    
+    log('INFO', 'Creating Supabase client', {
+      url: supabaseUrl,
+      hasServiceKey: !!supabaseServiceKey,
+      serviceKeyLength: supabaseServiceKey?.length || 0,
+      environment: process.env.NODE_ENV
+    });
+    
+    const client = createSupabaseClient(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    });
+    
+    const duration = Date.now() - startTime;
+    log('INFO', 'Supabase client created successfully', {
+      duration: `${duration}ms`,
+      timestamp: new Date().toISOString()
+    });
+    
+    return client;
+    
+  } catch (error: any) {
+    const duration = Date.now() - startTime;
+    log('ERROR', 'Failed to create Supabase client', {
+      error: error.message,
+      stack: error.stack,
+      duration: `${duration}ms`,
+      supabaseUrl: process.env.SUPABASE_URL,
+      hasServiceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY
+    });
+    
+    throw error;
+  }
 }
 
 // Database types based on our schema

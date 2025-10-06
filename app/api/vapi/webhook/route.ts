@@ -19,12 +19,17 @@ export async function POST(req: NextRequest) {
   try {
     // Parse webhook payload
     const rawBody = await req.text();
-    log('INFO', 'Received webhook', { bodyLength: rawBody.length });
+    log('INFO', 'Received webhook', { 
+      bodyLength: rawBody.length,
+      headers: Object.fromEntries(req.headers.entries()),
+      url: req.url
+    });
     
     const event = JSON.parse(rawBody);
     log('INFO', 'Parsed webhook event', { 
       type: event?.message?.type,
-      callId: event?.message?.call?.id 
+      callId: event?.message?.call?.id,
+      fullPayload: event
     });
 
     // Extract message and call data

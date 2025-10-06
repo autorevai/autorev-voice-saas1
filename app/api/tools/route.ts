@@ -2,24 +2,50 @@
 import { createClient } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
 
-export async function POST(req: NextRequest) {
-  // Verify auth
-  if (!authorized(req)) {
-    return NextResponse.json({ success: false, error: 'unauthorized' }, { status: 401 });
-  }
+// Helper to log with timestamps
+function log(level: 'INFO' | 'WARN' | 'ERROR', message: string, data?: any) {
+  const timestamp = new Date().toISOString();
+  const logData = data ? JSON.stringify(data, null, 2) : '';
+  console.log(`[${timestamp}] [TOOLS_API_${level}] ${message}`, logData);
+}
 
-  const tool = req.headers.get('x-tool-name') || '';
-  const args = await req.json().catch(() => ({}));
+export async function POST(req: NextRequest) {
+  const startTime = Date.now();
   
-  // Extract call ID from VAPI message format or headers
-  const callId = req.headers.get('x-vapi-call-id') || 
-                 args?.message?.call?.id || 
-                 args?.call?.id || '';
-  
-  // Get tenant ID (from header or demo fallback)
-  const tenantId = req.headers.get('x-tenant-id') || process.env.DEMO_TENANT_ID;
-  
-  console.log('TOOLS_API_CALL', { tool, callId, tenantId, args });
+  try {
+    // Log incoming request
+    log('INFO', 'Tools API request received', {
+      url: req.url,
+      method: req.method,
+      headers: Object.fromEntries(req.headers.entries())
+    });
+
+    // Verify auth
+    if (!authorized(req)) {
+      log('WARN', 'Unauthorized request', { 
+        headers: Object.fromEntries(req.headers.entries()) 
+      });
+      return NextResponse.json({ success: false, error: 'unauthorized' }, { status: 401 });
+    }
+
+    const tool = req.headers.get('x-tool-name') || '';
+    const args = await req.json().catch(() => ({}));
+    
+    // Extract call ID from VAPI message format or headers
+    const callId = req.headers.get('x-vapi-call-id') || 
+                   args?.message?.call?.id || 
+                   args?.call?.id || '';
+    
+    // Get tenant ID (from header or demo fallback)
+    const tenantId = req.headers.get('x-tenant-id') || process.env.DEMO_TENANT_ID;
+    
+    log('INFO', 'Processing tool call', { 
+      tool, 
+      callId, 
+      tenantId, 
+      args,
+      timestamp: new Date().toISOString()
+    });
   
   if (!tenantId) {
     console.warn('No tenant_id provided, using demo tenant');
@@ -29,6 +55,13 @@ export async function POST(req: NextRequest) {
   }
 
   if (tool === 'create_booking') {
+    log('INFO', 'Processing create_booking tool', { 
+      tool, 
+      callId, 
+      tenantId: tenantId || 'fallback',
+      rawArgs: args
+    });
+    
     const db = createClient();
     
     // Use fallback tenant ID if none provided
@@ -36,14 +69,32 @@ export async function POST(req: NextRequest) {
     
     // Extract data from VAPI message format
     const bookingData = extractBookingData(args);
+    log('INFO', 'Extracted booking data', { bookingData });
     
     // Generate confirmation code
     const confirmation = generateConfirmationCode();
+    log('INFO', 'Generated confirmation code', { confirmation });
     
     // Parse preferred time into actual datetime
     const startTime = parsePreferredTime(bookingData.preferred_time);
+    log('INFO', 'Parsed preferred time', { 
+      original: bookingData.preferred_time, 
+      parsed: startTime 
+    });
     
     // Save to database
+    log('INFO', 'Inserting booking into database', { 
+      tenantId: finalTenantId,
+      confirmation,
+      bookingData: {
+        name: bookingData.name,
+        phone: bookingData.phone,
+        email: bookingData.email,
+        address: bookingData.address,
+        service_type: bookingData.service_type
+      }
+    });
+    
     const { data: booking, error } = await db.from('bookings').insert({
       tenant_id: finalTenantId,
       confirmation: confirmation,
@@ -64,13 +115,24 @@ export async function POST(req: NextRequest) {
     }).select().single();
     
     if (error) {
-      console.error('Booking insert error:', error);
+      log('ERROR', 'Booking insert failed', { 
+        error: error.message,
+        code: error.code,
+        details: error.details,
+        bookingData
+      });
       return NextResponse.json({
         success: false,
         error: 'Failed to create booking',
         say: "I apologize, but I'm having trouble creating your appointment right now. Let me take your information and have someone call you back to schedule."
       });
     }
+    
+    log('INFO', 'Booking created successfully', { 
+      bookingId: booking.id,
+      confirmation: booking.confirmation,
+      callId
+    });
     
     // Log tool result
     await db.from('tool_results').insert({
@@ -92,8 +154,16 @@ export async function POST(req: NextRequest) {
   }
   
   if (tool === 'quote_estimate') {
+    log('INFO', 'Processing quote_estimate tool', { 
+      tool, 
+      callId, 
+      tenantId: tenantId || 'fallback',
+      rawArgs: args
+    });
+    
     // Extract data from VAPI message format
     const toolData = extractToolData(args, 'quote_estimate');
+    log('INFO', 'Extracted quote data', { toolData });
     
     // Provide price range based on service type
     const serviceType = toolData.service_type?.toLowerCase() || '';
@@ -103,6 +173,11 @@ export async function POST(req: NextRequest) {
     else if (serviceType.includes('install')) priceRange = '$2,500-$8,000';
     else if (serviceType.includes('repair')) priceRange = '$125-$350';
     else if (serviceType.includes('maintenance')) priceRange = '$89-$159';
+    
+    log('INFO', 'Determined price range', { 
+      serviceType, 
+      priceRange 
+    });
     
     // Log tool result
     const db = createClient();
@@ -118,15 +193,23 @@ export async function POST(req: NextRequest) {
     });
     
     return NextResponse.json({
-      success: true,
-      price_range: priceRange,
+    success: true,
+    price_range: priceRange,
       say: `For ${toolData.service_type}, the typical cost ranges from ${priceRange}. The final price depends on the specific issue and parts needed. Would you like to schedule an appointment?`
     });
   }
   
   if (tool === 'handoff_sms') {
+    log('INFO', 'Processing handoff_sms tool', { 
+      tool, 
+      callId, 
+      tenantId: tenantId || 'fallback',
+      rawArgs: args
+    });
+    
     // Extract data from VAPI message format
     const toolData = extractToolData(args, 'handoff_sms');
+    log('INFO', 'Extracted handoff data', { toolData });
     
     // Log handoff request
     const db = createClient();
@@ -148,8 +231,16 @@ export async function POST(req: NextRequest) {
   }
   
   if (tool === 'update_crm_note') {
+    log('INFO', 'Processing update_crm_note tool', { 
+      tool, 
+      callId, 
+      tenantId: tenantId || 'fallback',
+      rawArgs: args
+    });
+    
     // Extract data from VAPI message format
     const toolData = extractToolData(args, 'update_crm_note');
+    log('INFO', 'Extracted CRM note data', { toolData });
     
     // Log CRM note
     const db = createClient();
@@ -170,7 +261,26 @@ export async function POST(req: NextRequest) {
     });
   }
 
+  log('WARN', 'Unknown tool requested', { tool, callId, tenantId });
   return NextResponse.json({ success: false, error: 'unknown_tool' }, { status: 400 });
+
+  } catch (error: any) {
+    const duration = Date.now() - startTime;
+    log('ERROR', 'Tools API processing failed', {
+      error: error.message,
+      stack: error.stack,
+      duration,
+      tool: req.headers.get('x-tool-name') || 'unknown',
+      callId: req.headers.get('x-vapi-call-id') || 'unknown',
+      tenantId: req.headers.get('x-tenant-id') || process.env.DEMO_TENANT_ID || 'unknown'
+    });
+    
+    return NextResponse.json({ 
+      success: false,
+      error: 'Internal server error',
+      message: error.message 
+    }, { status: 500 });
+  }
 }
 
 function authorized(req: NextRequest): boolean {
