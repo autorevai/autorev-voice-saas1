@@ -1,5 +1,5 @@
 // app/api/vapi/webhook/route.ts
-// PRODUCTION-READY VERSION WITH ROBUST LOGGING
+// UNIVERSAL DYNAMIC HANDLER - Works with ANY VAPI assistant/number
 
 import { createClient } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
@@ -7,190 +7,398 @@ import { getOrCreateRequestId, createLogger } from '@/lib/request-id';
 
 export const dynamic = 'force-dynamic';
 
+// ========================================
+// DYNAMIC TENANT DETECTION
+// ========================================
+async function detectTenant(phoneNumber?: string, assistantId?: string, logger?: any): Promise<string | null> {
+  const log = logger || console;
+  const supabase = createClient();
+
+  // Strategy 1: Find by assistant ID
+  if (assistantId) {
+    log.info?.('Looking up tenant by assistant ID', { assistantId }) ||
+      console.log('Looking up tenant by assistant ID', { assistantId });
+
+    const { data, error } = await supabase
+      .from('assistants')
+      .select('tenant_id')
+      .eq('vapi_assistant_id', assistantId)
+      .single();
+
+    if (!error && data) {
+      log.info?.('Found tenant by assistant ID', {
+        assistantId,
+        tenantId: data.tenant_id
+      }) || console.log('Found tenant by assistant ID', { assistantId, tenantId: data.tenant_id });
+      return data.tenant_id;
+    }
+  }
+
+  // Strategy 2: Find by phone number
+  if (phoneNumber) {
+    log.info?.('Looking up tenant by phone number', { phoneNumber }) ||
+      console.log('Looking up tenant by phone number', { phoneNumber });
+
+    const { data, error } = await supabase
+      .from('assistants')
+      .select('tenant_id')
+      .eq('vapi_number_id', phoneNumber)
+      .single();
+
+    if (!error && data) {
+      log.info?.('Found tenant by phone number', {
+        phoneNumber,
+        tenantId: data.tenant_id
+      }) || console.log('Found tenant by phone number', { phoneNumber, tenantId: data.tenant_id });
+      return data.tenant_id;
+    }
+  }
+
+  // Strategy 3: Use demo tenant as fallback
+  const demoTenantId = process.env.DEMO_TENANT_ID;
+  if (demoTenantId) {
+    log.warn?.('Using demo tenant as fallback', { demoTenantId }) ||
+      console.warn('Using demo tenant as fallback', { demoTenantId });
+    return demoTenantId;
+  }
+
+  log.error?.('Could not determine tenant - no assistant, phone, or demo tenant') ||
+    console.error('Could not determine tenant - no assistant, phone, or demo tenant');
+  return null;
+}
+
+// ========================================
+// DYNAMIC DATA EXTRACTION
+// ========================================
+function extractCallData(event: any): {
+  callId: string | null;
+  assistantId: string | null;
+  phoneNumber: string | null;
+  startedAt: string | null;
+  endedAt: string | null;
+  duration: number | null;
+  transcript: string | null;
+  summary: string | null;
+  endedReason: string | null;
+  customer: {
+    phone?: string;
+    name?: string;
+  };
+} {
+  // Handle multiple VAPI webhook formats
+  const message = event?.message || event;
+  const call = message?.call || event?.call || {};
+
+  // Extract call metadata
+  const callId = call?.id || message?.callId || event?.callId || null;
+  const assistantId = call?.assistantId || message?.assistantId || event?.assistantId || null;
+
+  // Extract phone numbers (try multiple fields)
+  const phoneNumber =
+    call?.phoneNumber?.number ||
+    call?.phoneNumberId ||
+    call?.customer?.number ||
+    call?.customerNumber ||
+    message?.phoneNumber ||
+    null;
+
+  // Extract customer info from call object
+  const customerPhone =
+    call?.customer?.number ||
+    call?.customer?.phone ||
+    call?.phoneNumber?.number ||
+    null;
+
+  const customerName =
+    call?.customer?.name ||
+    call?.customerName ||
+    null;
+
+  // Extract timestamps
+  const startedAt = message?.startedAt || call?.startedAt || event?.startedAt || null;
+  const endedAt = message?.endedAt || call?.endedAt || event?.endedAt || null;
+
+  // Calculate duration
+  let duration = null;
+  if (message?.durationSeconds) {
+    duration = Math.round(message.durationSeconds);
+  } else if (startedAt && endedAt) {
+    const start = new Date(startedAt).getTime();
+    const end = new Date(endedAt).getTime();
+    duration = Math.round((end - start) / 1000);
+  }
+
+  // Extract conversation data
+  const transcript = message?.transcript || call?.transcript || null;
+  const summary = message?.summary || call?.summary || null;
+  const endedReason = message?.endedReason || call?.endedReason || null;
+
+  return {
+    callId,
+    assistantId,
+    phoneNumber,
+    startedAt,
+    endedAt,
+    duration,
+    transcript,
+    summary,
+    endedReason,
+    customer: {
+      phone: customerPhone,
+      name: customerName
+    }
+  };
+}
+
+// ========================================
+// MAIN HANDLER
+// ========================================
 export async function POST(req: NextRequest) {
   const startTime = Date.now();
   const requestId = getOrCreateRequestId(req);
   const log = createLogger(requestId, 'VAPI_WEBHOOK');
-  
+
   try {
-    // Parse webhook payload
+    // Parse webhook
     const rawBody = await req.text();
-    log.info('Received webhook', { 
+    log.info('Received webhook', {
       bodyLength: rawBody.length,
-      headers: Object.fromEntries(req.headers.entries()),
-      url: req.url
+      headers: Object.fromEntries(req.headers.entries())
     });
-    
+
     const event = JSON.parse(rawBody);
-    log.info('Parsed webhook event', { 
-      type: event?.message?.type,
-      callId: event?.message?.call?.id,
-      fullPayload: event
+    const message = event?.message || event;
+    const messageType = message?.type || event?.type;
+
+    log.info('Parsed webhook', {
+      type: messageType,
+      hasMessage: !!event?.message,
+      topLevelKeys: Object.keys(event || {})
     });
 
-    // Extract message and call data
-    const message = event?.message || event;
-    const messageType = message?.type;
-    const call = message?.call;
-    const callId = call?.id;
+    // Extract call data dynamically
+    const callData = extractCallData(event);
 
-    if (!callId) {
-      log.warn('No call ID in webhook', { messageType, event });
+    log.info('Extracted call data', {
+      callId: callData.callId,
+      assistantId: callData.assistantId,
+      phoneNumber: callData.phoneNumber,
+      hasTranscript: !!callData.transcript,
+      duration: callData.duration
+    });
+
+    if (!callData.callId) {
+      log.warn('No call ID found in webhook', { messageType, event });
       return NextResponse.json({ received: true, requestId }, { status: 200 });
     }
 
-    // Initialize Supabase client
+    // Detect tenant dynamically
     const supabase = createClient();
-    log.info('Supabase client created');
+    const tenantId = await detectTenant(
+      callData.phoneNumber || undefined,
+      callData.assistantId || undefined,
+      log
+    );
 
-    // Get tenant ID (use demo tenant for now)
-    const tenantId = process.env.DEMO_TENANT_ID;
     if (!tenantId) {
-      log.error('DEMO_TENANT_ID not set in environment');
-      return NextResponse.json({ error: 'Configuration error', requestId }, { status: 500 });
+      log.error('Could not determine tenant for call', {
+        callId: callData.callId,
+        phoneNumber: callData.phoneNumber,
+        assistantId: callData.assistantId
+      });
+      return NextResponse.json({
+        error: 'Tenant not found',
+        received: true,
+        requestId
+      }, { status: 200 });
     }
 
-    log.info(`Processing webhook type: ${messageType} for call: ${callId}`);
+    log.info(`Processing ${messageType} for tenant ${tenantId}`, {
+      callId: callData.callId,
+      tenantId
+    });
 
-    // Handle different webhook types
-    switch (messageType) {
-      case 'assistant-request': {
-        log.info('Handling assistant-request');
-        
-        // Check if call already exists
-        const { data: existingCall, error: checkError } = await supabase
-          .from('calls')
-          .select('id')
-          .eq('vapi_call_id', callId)
-          .single();
+    // ========================================
+    // HANDLE: assistant-request (Call Start)
+    // ========================================
+    if (messageType === 'assistant-request') {
+      log.info('Handling assistant-request', {
+        callId: callData.callId,
+        tenantId
+      });
 
-        if (checkError && checkError.code !== 'PGRST116') {
-          log.error('Error checking existing call', checkError);
-        }
+      const { data: existingCall } = await supabase
+        .from('calls')
+        .select('id')
+        .eq('vapi_call_id', callData.callId)
+        .single();
 
-        if (!existingCall) {
-          log.info('Creating new call record', { callId, tenantId });
-          
-          const { data: newCall, error: insertError } = await supabase
-            .from('calls')
-            .insert({
-              tenant_id: tenantId,
-              vapi_call_id: callId,
-              started_at: call?.startedAt || new Date().toISOString(),
-              outcome: 'unknown',
-              raw_json: call || {}
-            })
-            .select()
+      if (!existingCall) {
+        // Look up assistant DB ID if we have VAPI assistant ID
+        let assistantDbId = null;
+        if (callData.assistantId) {
+          const { data: assistant } = await supabase
+            .from('assistants')
+            .select('id')
+            .eq('vapi_assistant_id', callData.assistantId)
             .single();
-
-          if (insertError) {
-            log.error('Failed to insert call', { error: insertError, callId });
-          } else {
-            log.info('Call created successfully', { 
-              dbCallId: newCall.id, 
-              vapiCallId: callId 
-            });
-          }
-        } else {
-          log.info('Call already exists', { callId });
+          assistantDbId = assistant?.id || null;
         }
-        break;
-      }
 
-      case 'end-of-call-report': {
-        log.info('Handling end-of-call-report');
-
-        const endedAt = message?.endedAt;
-        const durationSec = Math.round(message?.durationSeconds || 0);
-        const transcript = message?.transcript || null;
-        const summary = message?.summary || null;
-        const endedReason = message?.endedReason || null;
-
-        log.info('Call ended details', {
-          callId,
-          durationSec,
-          hasTranscript: !!transcript,
-          transcriptLength: transcript?.length || 0,
-          endedReason
-        });
-
-        // Update call with end data
-        const { data: updatedCall, error: updateError } = await supabase
+        const { data: newCall, error: insertError } = await supabase
           .from('calls')
-          .update({
-            ended_at: endedAt || new Date().toISOString(),
-            duration_sec: durationSec,
-            transcript_url: transcript 
-              ? `data:text/plain;base64,${Buffer.from(transcript).toString('base64')}` 
-              : null,
-            raw_json: { 
-              ...call,
-              transcript, 
-              summary, 
-              endedReason,
-              fullMessage: message 
-            }
+          .insert({
+            tenant_id: tenantId,
+            assistant_id: assistantDbId,
+            vapi_call_id: callData.callId,
+            started_at: callData.startedAt || new Date().toISOString(),
+            outcome: 'unknown',
+            raw_json: { event, callData }
           })
-          .eq('vapi_call_id', callId)
           .select()
           .single();
 
-        if (updateError) {
-          log.error('Failed to update call', { error: updateError, callId });
+        if (insertError) {
+          log.error('Failed to create call', {
+            error: insertError.message,
+            callId: callData.callId
+          });
         } else {
-          log.info('Call updated successfully', {
-            dbCallId: updatedCall.id,
-            vapiCallId: callId,
-            duration: durationSec
+          log.info('Call created successfully', {
+            dbCallId: newCall.id,
+            vapiCallId: callData.callId,
+            tenantId
           });
         }
-        break;
+      } else {
+        log.info('Call already exists', { callId: callData.callId });
       }
 
-      case 'status-update': {
-        log.info('Status update received', {
-          callId,
-          status: message?.status
-        });
-        break;
-      }
-
-      case 'tool-calls': {
-        log.info('Tool calls received', {
-          callId,
-          toolCount: message?.toolCalls?.length || 0
-        });
-        
-        // Log each tool call for debugging
-        if (message?.toolCalls) {
-          for (const toolCall of message.toolCalls) {
-            log.info('Tool call details', {
-              name: toolCall.function?.name,
-              args: toolCall.function?.arguments
-            });
-          }
-        }
-        break;
-      }
-
-      default: {
-        log.warn('Unknown webhook type', {
-          type: messageType,
-          callId,
-          keys: Object.keys(message)
-        });
-      }
+      const duration = Date.now() - startTime;
+      return NextResponse.json({
+        received: true,
+        requestId,
+        duration
+      }, { status: 200 });
     }
 
-    const duration = Date.now() - startTime;
-    log.info(`Webhook processed successfully in ${duration}ms`);
+    // ========================================
+    // HANDLE: end-of-call-report (Call End)
+    // ========================================
+    if (messageType === 'end-of-call-report') {
+      log.info('Handling end-of-call-report', {
+        callId: callData.callId,
+        duration: callData.duration,
+        hasTranscript: !!callData.transcript,
+        transcriptLength: callData.transcript?.length || 0
+      });
 
+      // Encode transcript as base64 data URL
+      const transcriptUrl = callData.transcript
+        ? `data:text/plain;base64,${Buffer.from(callData.transcript).toString('base64')}`
+        : null;
+
+      const { data: updatedCall, error: updateError } = await supabase
+        .from('calls')
+        .update({
+          ended_at: callData.endedAt || new Date().toISOString(),
+          duration_sec: callData.duration,
+          transcript_url: transcriptUrl,
+          raw_json: {
+            event,
+            callData,
+            transcript: callData.transcript,
+            summary: callData.summary,
+            endedReason: callData.endedReason
+          }
+        })
+        .eq('vapi_call_id', callData.callId)
+        .select()
+        .single();
+
+      if (updateError) {
+        log.error('Failed to update call', {
+          error: updateError.message,
+          callId: callData.callId
+        });
+      } else {
+        log.info('Call updated successfully', {
+          dbCallId: updatedCall.id,
+          vapiCallId: callData.callId,
+          duration: callData.duration
+        });
+      }
+
+      const duration = Date.now() - startTime;
+      return NextResponse.json({
+        received: true,
+        requestId,
+        duration
+      }, { status: 200 });
+    }
+
+    // ========================================
+    // HANDLE: status-update
+    // ========================================
+    if (messageType === 'status-update') {
+      log.info('Status update received', {
+        callId: callData.callId,
+        status: message?.status
+      });
+
+      const duration = Date.now() - startTime;
+      return NextResponse.json({
+        received: true,
+        requestId,
+        duration
+      }, { status: 200 });
+    }
+
+    // ========================================
+    // HANDLE: tool-calls (for logging)
+    // ========================================
+    if (messageType === 'tool-calls') {
+      const toolNames = message?.toolCalls?.map((t: any) => t.function?.name) || [];
+
+      log.info('Tool calls received', {
+        callId: callData.callId,
+        toolCount: message?.toolCalls?.length || 0,
+        tools: toolNames
+      });
+
+      // Log each tool call for debugging
+      if (message?.toolCalls) {
+        for (const toolCall of message.toolCalls) {
+          log.info('Tool call details', {
+            name: toolCall.function?.name,
+            args: toolCall.function?.arguments
+          });
+        }
+      }
+
+      const duration = Date.now() - startTime;
+      return NextResponse.json({
+        received: true,
+        requestId,
+        duration
+      }, { status: 200 });
+    }
+
+    // ========================================
+    // UNKNOWN TYPE
+    // ========================================
+    log.warn('Unknown webhook type', {
+      type: messageType,
+      callId: callData.callId,
+      keys: Object.keys(message || {}),
+      availableTypes: ['assistant-request', 'end-of-call-report', 'status-update', 'tool-calls']
+    });
+
+    const duration = Date.now() - startTime;
     return NextResponse.json({
       received: true,
-      processed: messageType,
-      callId,
-      duration,
-      requestId
+      requestId,
+      duration
     }, { status: 200 });
 
   } catch (error: any) {
@@ -200,10 +408,11 @@ export async function POST(req: NextRequest) {
       stack: error.stack,
       duration
     });
-    
+
     return NextResponse.json({
       error: 'Webhook processing failed',
       message: error.message,
+      received: true,
       requestId
     }, { status: 500 });
   }
