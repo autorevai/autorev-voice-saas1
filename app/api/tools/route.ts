@@ -181,10 +181,15 @@ export async function POST(req: NextRequest) {
     log.info('create_booking completed successfully', { duration, confirmation });
 
     // Return success to VAPI
+    // Format time for speech-friendly output (replace hyphens with "to")
+    const speakableTime = sanitized.preferred_time
+      ? sanitized.preferred_time.replace(/(\d+)-(\d+)/g, '$1 to $2')
+      : 'soon';
+
     return NextResponse.json({
       success: true,
       confirmation: confirmation,
-      say: `Perfect! Your appointment is confirmed. Your confirmation code is ${confirmation}. We'll see you ${sanitized.preferred_time || 'soon'}.`,
+      say: `Perfect! Your appointment is confirmed. We'll see you ${speakableTime}. Is there anything else I can help you with?`,
       booking_id: booking.id,
       requestId,
       duration

@@ -57,7 +57,7 @@ BOOKING FLOW:
 2. Ask what service they need
 3. If emergency keywords → mention we can help urgently
 4. Collect: name, phone, address (street, city, state, zip)
-5. Offer specific time slots: "I have 2 slots available today: 9-11am or 2-4pm. Which works better for you?"
+5. Offer specific time slots: "I have 2 slots available today: 9 to 11 AM or 2 to 4 PM. Which works better for you?"
 6. Wait for customer to choose a specific slot
 7. Confirm the chosen slot: "Perfect! I have you scheduled for [chosen time] on [date]"
 8. Optional: equipment details, access notes
@@ -133,7 +133,7 @@ BOOKING FLOW:
 2. Ask what service they need
 3. If emergency keywords → mention we can help urgently
 4. Collect: name, phone, address (street, city, state, zip)
-5. Offer specific time slots: "I have 2 slots available today: 9-11am or 2-4pm. Which works better for you?"
+5. Offer specific time slots: "I have 2 slots available today: 9 to 11 AM or 2 to 4 PM. Which works better for you?"
 6. Wait for customer to choose a specific slot
 7. Confirm the chosen slot: "Perfect! I have you scheduled for [chosen time] on [date]"
 8. Optional: equipment details, access notes
@@ -209,7 +209,7 @@ BOOKING FLOW:
 2. Ask what service they need
 3. If emergency keywords → mention we can help urgently
 4. Collect: name, phone, address (street, city, state, zip)
-5. Offer specific time slots: "I have 2 slots available today: 9-11am or 2-4pm. Which works better for you?"
+5. Offer specific time slots: "I have 2 slots available today: 9 to 11 AM or 2 to 4 PM. Which works better for you?"
 6. Wait for customer to choose a specific slot
 7. Confirm the chosen slot: "Perfect! I have you scheduled for [chosen time] on [date]"
 8. Optional: equipment details, access notes
