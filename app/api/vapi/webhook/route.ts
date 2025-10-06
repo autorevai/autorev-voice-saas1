@@ -308,7 +308,7 @@ export async function POST(req: NextRequest) {
             assistant_id: assistantDbId,
             vapi_call_id: callData.callId,
             started_at: callData.startedAt || new Date().toISOString(),
-            outcome: 'in_progress',
+            outcome: 'unknown',
             raw_json: {
               call_id: callData.callId,
               assistant_id: callData.assistantId,
