@@ -25,6 +25,29 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No tenant found' }, { status: 400 });
     }
 
+    // 2.5. Check if assistant already exists for this tenant
+    const { data: existingAssistants } = await db
+      .from('assistants')
+      .select('id, name, vapi_assistant_id, vapi_number_id, status')
+      .eq('tenant_id', userRecord.tenant_id)
+      .eq('status', 'active');
+
+    if (existingAssistants && existingAssistants.length > 0) {
+      console.log('⚠️  Active assistant already exists for tenant', {
+        tenantId: userRecord.tenant_id,
+        assistantCount: existingAssistants.length,
+        assistants: existingAssistants
+      });
+
+      // Return the existing assistant info instead of creating a new one
+      return NextResponse.json({
+        success: true,
+        phoneNumber: existingAssistants[0].vapi_number_id || 'Not provisioned',
+        assistantId: existingAssistants[0].vapi_assistant_id,
+        message: 'Assistant already exists for this tenant'
+      });
+    }
+
     // 3. Parse request body
     const body = await req.json();
     const { businessPhone, ...profile } = body;

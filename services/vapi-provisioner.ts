@@ -126,10 +126,32 @@ export async function provisionVapiAssistant(
               const industry = config.profile.industry;
               const dateStr = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
               const phoneName = `${tenantSlug}-${industry}-${dateStr}`;
-              
+
               // Ensure phone name is within 40 character limit
               const finalPhoneName = phoneName.length > 40 ? phoneName.substring(0, 40) : phoneName;
-              
+
+              // Build webhook URL properly
+              let baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://autorev-voice-saas1.vercel.app';
+
+              // Safeguard: Remove environment variable name if it was accidentally included
+              if (baseUrl.includes('NEXT_PUBLIC_APP_URL=')) {
+                baseUrl = baseUrl.replace(/.*NEXT_PUBLIC_APP_URL=/, '');
+              }
+
+              // Ensure it starts with https://
+              if (!baseUrl.startsWith('http')) {
+                baseUrl = `https://${baseUrl}`;
+              }
+
+              const webhookUrl = `${baseUrl}/api/vapi/webhook`;
+
+              console.log('🔗 Webhook configuration:', {
+                rawEnvValue: process.env.NEXT_PUBLIC_APP_URL,
+                cleanedBaseUrl: baseUrl,
+                webhookUrl,
+                hasSecret: !!process.env.WEBHOOK_SHARED_SECRET
+              });
+
               const phone = await vapi.phoneNumbers.create({
                 provider: 'vapi',
                 assistantId: assistant.id,
@@ -137,7 +159,7 @@ export async function provisionVapiAssistant(
                 numberDesiredAreaCode: '740',
                 // CRITICAL: Set server for call lifecycle webhooks (HTTPS required)
                 server: {
-                  url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://autorev-voice-saas1.vercel.app'}/api/vapi/webhook`,
+                  url: webhookUrl,
                   secret: process.env.WEBHOOK_SHARED_SECRET
                 } as any, // Type assertion to bypass incomplete SDK types
                 fallbackDestination: {
@@ -151,7 +173,12 @@ export async function provisionVapiAssistant(
               console.log('✅ Phone provisioned successfully:', phoneNumber);
               console.log('📞 Phone name:', finalPhoneName);
             } catch (phoneError: any) {
-              console.warn('⚠️  Phone provisioning failed:', phoneError.message);
+              console.error('⚠️  Phone provisioning failed:', {
+                message: phoneError.message,
+                status: phoneError.statusCode,
+                body: phoneError.body,
+                error: phoneError
+              });
               phoneProvisioningFailed = true;
               // Continue without phone - not critical for assistant functionality
             }

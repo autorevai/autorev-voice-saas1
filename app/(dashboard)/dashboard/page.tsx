@@ -90,15 +90,28 @@ async function getDashboardData(): Promise<DashboardData> {
     const todayISO = today.toISOString()
 
     // Get assistant info (may not exist if setup not completed)
-    const { data: assistant, error: assistantError } = await db
+    // Handle multiple assistants - get the most recent one
+    const { data: assistants, error: assistantError } = await db
       .from('assistants')
       .select('*, vapi_number_id')
       .eq('tenant_id', tenantId)
       .eq('status', 'active')
-      .maybeSingle() // Use maybeSingle() instead of single() to handle no results
-    
+      .order('created_at', { ascending: false })
+
     if (assistantError) {
       console.error('Error fetching assistant:', assistantError)
+    }
+
+    // Use the most recently created assistant
+    const assistant = assistants && assistants.length > 0 ? assistants[0] : null
+
+    // Log if there are multiple assistants (this shouldn't happen normally)
+    if (assistants && assistants.length > 1) {
+      console.warn('⚠️  Multiple active assistants found for tenant:', {
+        tenantId,
+        count: assistants.length,
+        assistants: assistants.map(a => ({ id: a.id, name: a.name, created_at: a.created_at }))
+      })
     }
 
     // Get calls today
