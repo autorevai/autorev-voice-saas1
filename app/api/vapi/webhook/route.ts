@@ -268,32 +268,15 @@ export async function POST(req: NextRequest) {
     const message = payload.message;
     const messageType = message.type;
 
-    console.log('📥 WEBHOOK RECEIVED:', messageType);
-    log.info('Received webhook', {
-      bodyLength: rawBody.length,
-      type: messageType,
-      hasCall: !!message.call
-    });
+    // Only log important webhook types
+    if (messageType === 'assistant-request' || messageType === 'end-of-call-report') {
+      console.log('📥 WEBHOOK:', messageType);
+    }
 
     // ========================================
     // 3. EXTRACT CALL DATA
     // ========================================
     const callData = extractCallData(payload);
-
-    console.log('🔍 CALL DATA:', {
-      call_id: callData.callId?.substring(0, 12) + '...',
-      type: messageType,
-      duration: callData.duration || 'n/a',
-      has_transcript: !!callData.transcript
-    });
-
-    log.info('Extracted call data', {
-      callId: callData.callId,
-      assistantId: callData.assistantId,
-      phoneNumber: callData.phoneNumber,
-      hasTranscript: !!callData.transcript,
-      duration: callData.duration
-    });
 
     if (!callData.callId) {
       log.warn('No call ID found in webhook', { messageType, payload });
@@ -326,21 +309,13 @@ export async function POST(req: NextRequest) {
       }, { status: 200 });
     }
 
-    console.log('🏢 TENANT DETECTED:', tenantId.substring(0, 8) + '...');
-    log.info(`Processing ${messageType} for tenant ${tenantId}`, {
-      callId: callData.callId,
-      tenantId
-    });
+    // Tenant detected - continue processing
 
     // ========================================
     // HANDLE: assistant-request (Call Start)
     // ========================================
     if (messageType === 'assistant-request') {
-      console.log('📞 CALL STARTING...');
-      log.info('Handling assistant-request', {
-        callId: callData.callId,
-        tenantId
-      });
+      console.log('📞 Call starting:', callData.callId?.substring(0, 12));
 
       const { data: existingCall } = await supabase
         .from('calls')
@@ -417,16 +392,7 @@ export async function POST(req: NextRequest) {
     // HANDLE: end-of-call-report (Call End)
     // ========================================
     if (messageType === 'end-of-call-report') {
-      console.log('📴 CALL ENDED:', {
-        duration: callData.duration + 's',
-        transcript: callData.transcript ? callData.transcript.length + ' chars' : 'none'
-      });
-      log.info('Handling end-of-call-report', {
-        callId: callData.callId,
-        duration: callData.duration,
-        hasTranscript: !!callData.transcript,
-        transcriptLength: callData.transcript?.length || 0
-      });
+      console.log('📴 Call ended:', callData.callId?.substring(0, 12), `(${callData.duration}s)`);
 
       // Encode transcript as base64 data URL
       const transcriptUrl = callData.transcript

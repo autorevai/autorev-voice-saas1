@@ -11,14 +11,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const tool = req.headers.get('x-tool-name') || '';
-    console.log('🔧 TOOL CALLED:', tool || 'unknown');
-
-    // Log incoming request
-    log.info('Tools API request received', {
-      url: req.url,
-      method: req.method,
-      headers: Object.fromEntries(req.headers.entries())
-    });
+    console.log('🔧 Tool:', tool);
 
     // Verify auth
     if (!authorized(req)) {
@@ -45,7 +38,6 @@ export async function POST(req: NextRequest) {
 
     // Strategy 1: Look up tenant from assistants table using assistant_id
     if (!tenantId && assistantId) {
-      log.info('Looking up tenant from assistant', { assistantId });
       const { data: assistant } = await db
         .from('assistants')
         .select('tenant_id')
@@ -54,41 +46,18 @@ export async function POST(req: NextRequest) {
 
       if (assistant) {
         tenantId = assistant.tenant_id;
-        log.info('Found tenant from assistant lookup', { assistantId, tenantId });
-      } else {
-        log.warn('No assistant found for tenant lookup', { assistantId });
       }
     }
 
     // Strategy 2: Fallback to demo tenant only if absolutely necessary
     if (!tenantId) {
       tenantId = process.env.DEMO_TENANT_ID || null;
-      log.warn('Using demo tenant as fallback', { tenantId });
     }
 
-    log.info('Processing tool call', {
-      tool,
-      callId,
-      assistantId,
-      tenantId,
-      timestamp: new Date().toISOString()
-    });
-
   if (tool === 'create_booking') {
-    log.info('Processing create_booking tool', {
-      tool,
-      callId,
-      tenantId,
-      rawArgs: args
-    });
-    
     // Extract data from VAPI message format
     const extraction = extractBookingData(args);
     const bookingData = extraction.data;
-    log.info('Extracted booking data', {
-      bookingData,
-      messageFormat: extraction.format
-    });
 
     // Validate booking data
     const validationResult = validateBookingData(bookingData);
@@ -107,31 +76,12 @@ export async function POST(req: NextRequest) {
 
     // Use sanitized data
     const sanitized = validationResult.sanitized;
-    log.info('Booking data validated and sanitized', { sanitized });
 
     // Generate confirmation code
     const confirmation = generateConfirmationCode();
-    log.info('Generated confirmation code', { confirmation });
 
     // Parse preferred time into actual datetime
     const bookingStartTime = parsePreferredTime(sanitized.preferred_time || 'tomorrow 9am');
-    log.info('Parsed preferred time', {
-      original: sanitized.preferred_time,
-      parsed: bookingStartTime
-    });
-
-    // Save to database
-    log.info('Inserting booking into database', {
-      tenantId,
-      confirmation,
-      bookingData: {
-        name: bookingData.name,
-        phone: bookingData.phone,
-        email: bookingData.email,
-        address: bookingData.address,
-        service_type: bookingData.service_type
-      }
-    });
 
     // First, get the internal call ID from the vapi_call_id
     let internalCallId = null;
@@ -179,59 +129,29 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    console.log('✅ DB BOOKING CREATED:', {
-      id: booking.id,
-      confirmation: booking.confirmation,
-      customer: sanitized.name,
-      time: sanitized.preferred_time
-    });
-    log.info('Booking created successfully', {
-      bookingId: booking.id,
-      confirmation: booking.confirmation,
-      callId
-    });
+    console.log('✅ Booking created:', confirmation, '/', sanitized.name);
 
     // Update call outcome to 'booked' (only if we have internal call ID)
     if (internalCallId) {
-      try {
-        await db.from('calls')
-          .update({ outcome: 'booked' })
-          .eq('id', internalCallId);
-        log.info('Updated call outcome to booked', { callId: internalCallId });
-      } catch (outcomeError: any) {
-        log.warn('Failed to update call outcome', {
-          error: outcomeError.message,
-          callId: internalCallId
-        });
-      }
+      db.from('calls')
+        .update({ outcome: 'booked' })
+        .eq('id', internalCallId)
+        .then(() => {})
+        .catch(() => {});
     }
 
     // Log tool result (only if we have a valid call_id)
     if (callId) {
-      try {
-        await db.from('tool_results').insert({
-          call_id: callId,
-          tool_name: 'create_booking',
-          request_json: args,
-          response_json: { confirmation, booking_id: booking.id },
-          success: true
-        });
-        console.log('✅ DB TOOL_RESULT LOGGED:', { tool: 'create_booking', call_id: callId });
-        log.info('Tool result logged', { tool: 'create_booking', callId });
-      } catch (toolError: any) {
-        console.error('❌ DB TOOL_RESULT FAILED:', toolError.message);
-        log.warn('Failed to log tool result', {
-          error: toolError.message,
-          tool: 'create_booking',
-          callId
-        });
-      }
-    } else {
-      log.warn('Skipping tool result logging - no call_id', { tool: 'create_booking' });
+      db.from('tool_results').insert({
+        call_id: callId,
+        tool_name: 'create_booking',
+        request_json: args,
+        response_json: { confirmation, booking_id: booking.id },
+        success: true
+      }).then(() => {}).catch(() => {});
     }
 
     const duration = Date.now() - startTime;
-    log.info('create_booking completed successfully', { duration, confirmation });
 
     // Return success to VAPI
     // Format time for speech-friendly output (replace hyphens with "to")

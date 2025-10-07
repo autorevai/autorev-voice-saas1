@@ -30,14 +30,29 @@ interface CallDetails {
 }
 
 async function getCallDetails(callId: string): Promise<CallDetails | null> {
-  const db = createClient()
-  const tenantId = process.env.DEMO_TENANT_ID
-  
-  if (!tenantId) {
-    throw new Error('DEMO_TENANT_ID not configured')
-  }
+  const db = await createClient()
 
   try {
+    // Get authenticated user's tenant
+    const { data: { user }, error: authError } = await db.auth.getUser()
+
+    if (authError || !user) {
+      throw new Error('Authentication failed')
+    }
+
+    // Get user's tenant from users table
+    const { data: userRecord, error: userError } = await db
+      .from('users')
+      .select('tenant_id')
+      .eq('id', user.id)
+      .single()
+
+    if (userError || !userRecord?.tenant_id) {
+      throw new Error('User tenant not found')
+    }
+
+    const tenantId = userRecord.tenant_id
+
     // Get call details
     const { data: call, error: callError } = await db
       .from('calls')
@@ -150,19 +165,18 @@ export default async function CallDetailsPage({ params }: { params: Promise<{ id
           </div>
         </div>
 
-        {/* Transcript Info */}
+        {/* Transcript */}
         <div className="mb-8">
           <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-sm font-medium text-gray-500 mb-2">Transcript</h3>
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Transcript</h3>
             {call.transcript_url ? (
-              <a 
-                href={call.transcript_url} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="text-blue-600 hover:text-blue-800 text-sm"
-              >
-                View Transcript
-              </a>
+              <div className="bg-gray-50 rounded-lg p-4 max-h-96 overflow-y-auto">
+                <pre className="text-sm text-gray-700 whitespace-pre-wrap font-sans">
+                  {call.transcript_url.startsWith('data:')
+                    ? decodeURIComponent(call.transcript_url.split(',')[1] || '')
+                    : call.transcript_url}
+                </pre>
+              </div>
             ) : (
               <p className="text-gray-500 text-sm">No transcript available</p>
             )}
