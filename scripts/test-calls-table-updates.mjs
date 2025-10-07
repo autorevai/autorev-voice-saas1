@@ -40,7 +40,7 @@ async function testWebhookUpdates() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-shared-secret': `Bearer ${WEBHOOK_SECRET}`
+        'x-shared-secret': WEBHOOK_SECRET
       },
       body: JSON.stringify(assistantRequestPayload)
     });
@@ -72,7 +72,7 @@ async function testWebhookUpdates() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-shared-secret': `Bearer ${WEBHOOK_SECRET}`
+        'x-shared-secret': WEBHOOK_SECRET
       },
       body: JSON.stringify(conversationPayload)
     });
@@ -118,7 +118,7 @@ async function testWebhookUpdates() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-shared-secret': `Bearer ${WEBHOOK_SECRET}`
+        'x-shared-secret': WEBHOOK_SECRET
       },
       body: JSON.stringify(toolCallsPayload)
     });
@@ -156,7 +156,7 @@ async function testWebhookUpdates() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-shared-secret': `Bearer ${WEBHOOK_SECRET}`
+        'x-shared-secret': WEBHOOK_SECRET
       },
       body: JSON.stringify(endCallPayload)
     });

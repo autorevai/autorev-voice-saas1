@@ -13,7 +13,7 @@
     "cleanup:phones": "npx tsx scripts/cleanup-phone-numbers.ts",
     "list:phones": "npx tsx scripts/list-phone-numbers.ts",
     "test:hvac": "npx tsx scripts/test-hvac-provision.ts",
-    "test:calls-updates": "node scripts/test-calls-table-updates.js"
+    "test:calls-updates": "node scripts/test-calls-table-updates.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
