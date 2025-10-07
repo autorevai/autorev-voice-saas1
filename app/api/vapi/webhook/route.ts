@@ -44,9 +44,6 @@ async function detectTenant(phoneNumber?: string, assistantId?: string, logger?:
 
   // Strategy 1: Find by assistant ID
   if (assistantId) {
-    log.info?.('Looking up tenant by assistant ID', { assistantId }) ||
-      console.log('Looking up tenant by assistant ID', { assistantId });
-
     const { data, error } = await supabase
       .from('assistants')
       .select('tenant_id')
@@ -54,19 +51,12 @@ async function detectTenant(phoneNumber?: string, assistantId?: string, logger?:
       .single();
 
     if (!error && data) {
-      log.info?.('Found tenant by assistant ID', {
-        assistantId,
-        tenantId: data.tenant_id
-      }) || console.log('Found tenant by assistant ID', { assistantId, tenantId: data.tenant_id });
       return data.tenant_id;
     }
   }
 
   // Strategy 2: Find by phone number
   if (phoneNumber) {
-    log.info?.('Looking up tenant by phone number', { phoneNumber }) ||
-      console.log('Looking up tenant by phone number', { phoneNumber });
-
     const { data, error } = await supabase
       .from('assistants')
       .select('tenant_id')
@@ -74,10 +64,6 @@ async function detectTenant(phoneNumber?: string, assistantId?: string, logger?:
       .single();
 
     if (!error && data) {
-      log.info?.('Found tenant by phone number', {
-        phoneNumber,
-        tenantId: data.tenant_id
-      }) || console.log('Found tenant by phone number', { phoneNumber, tenantId: data.tenant_id });
       return data.tenant_id;
     }
   }
@@ -190,16 +176,6 @@ function extractCallData(event: any): {
     successEvaluation: artifact?.successEvaluation || message?.analysis?.successEvaluation || null
   };
 
-  console.log('🔍 EXTRACTED DATA:', {
-    has_transcript: !!transcript,
-    transcript_length: transcript?.length || 0,
-    has_summary: !!summary,
-    duration,
-    ended_reason: endedReason,
-    cost,
-    customer_phone: customerPhone
-  });
-
   return {
     callId,
     assistantId,
@@ -247,24 +223,35 @@ async function extractAndUpdateCustomerData(
     const updates: any = {};
 
     // Extract name patterns: "My name is John", "I'm Sarah", "This is Mike", "Yes. This is Chris Jones"
-    if (!existingCall.customer_name) {
-      // Try multiple patterns
-      const namePatterns = [
-        /(?:my name is|i'm|this is|i am|yes\.?\s+this is)\s+([A-Z][a-z]+\s+[A-Z][a-z]+)/i,
-        /Customer:\s*(?:Yes\.?\s+)?(?:This is|I'm|My name is)\s+([A-Z][a-z]+\s+[A-Z][a-z]+)/i,
-        /(?:^|\n)(?:Yes\.?\s+)?(?:This is|I'm|My name is)\s+([A-Z][a-z]+\s+[A-Z][a-z]+)/im
-      ];
+    // Try multiple patterns
+    const namePatterns = [
+      /(?:my name is|i'm|this is|i am|yes\.?\s+this is)\s+([A-Z][a-z]+\s+[A-Z][a-z]+)/i,
+      /Customer:\s*(?:Yes\.?\s+)?(?:This is|I'm|My name is)\s+([A-Z][a-z]+\s+[A-Z][a-z]+)/i,
+      /(?:^|\n)(?:Yes\.?\s+)?(?:This is|I'm|My name is)\s+([A-Z][a-z]+\s+[A-Z][a-z]+)/im
+    ];
 
-      for (const pattern of namePatterns) {
-        const nameMatch = transcript.match(pattern);
-        if (nameMatch) {
-          const name = nameMatch[1].trim();
-          // Validate it's a proper name (two words, capitalized)
-          if (name.length > 3 && name.length < 50 && name.includes(' ')) {
+    for (const pattern of namePatterns) {
+      const nameMatch = transcript.match(pattern);
+      if (nameMatch) {
+        const name = nameMatch[1].trim();
+        // Validate it's a proper name (two words, capitalized)
+        if (name.length > 3 && name.length < 50 && name.includes(' ')) {
+          // Only update if:
+          // 1. No existing name, OR
+          // 2. New name is longer/more complete (e.g., "Chris Smith" vs "Chris uh")
+          const shouldUpdate = !existingCall.customer_name ||
+                              (name.length > existingCall.customer_name.length &&
+                               !name.toLowerCase().includes(' uh'));
+
+          if (shouldUpdate) {
             updates.customer_name = name;
-            console.log('✅ DB CALL: Customer name extracted from conversation:', name);
-            break;
+            log.info('Customer name extracted from conversation', {
+              name,
+              previous: existingCall.customer_name,
+              isUpdate: !!existingCall.customer_name
+            });
           }
+          break;
         }
       }
     }
@@ -369,6 +356,27 @@ async function extractAndUpdateCustomerData(
         updates,
         fieldsUpdated: Object.keys(updates)
       });
+
+      // Also update linked bookings with the corrected customer name
+      if (updates.customer_name) {
+        const { data: linkedBooking } = await supabase
+          .from('bookings')
+          .select('id')
+          .eq('call_id', existingCall.id)
+          .single();
+
+        if (linkedBooking) {
+          await supabase
+            .from('bookings')
+            .update({ customer_name: updates.customer_name })
+            .eq('id', linkedBooking.id);
+
+          log.info('Updated booking with corrected customer name', {
+            bookingId: linkedBooking.id,
+            name: updates.customer_name
+          });
+        }
+      }
     }
 
   } catch (error: any) {
@@ -930,37 +938,61 @@ export async function POST(req: NextRequest) {
             const customerState = params.state || params.customer_state;
             const customerZip = params.zip || params.customer_zip || params.zip_code;
 
-            // Update call record progressively
+            // Update call record with tool data (always overwrite - tool data is most reliable)
             const updates: any = {};
 
-            if (customerName && !existingCall.customer_name) {
+            if (customerName) {
               updates.customer_name = customerName;
-              console.log('✅ DB CALL: Customer name added:', customerName);
+              log.info('Customer name from tool', {
+                name: customerName,
+                previous: existingCall.customer_name,
+                isUpdate: !!existingCall.customer_name
+              });
             }
 
-            if (customerPhone && !existingCall.customer_phone) {
+            if (customerPhone) {
               updates.customer_phone = customerPhone;
-              console.log('✅ DB CALL: Customer phone added:', customerPhone);
+              log.info('Customer phone from tool', {
+                phone: customerPhone,
+                previous: existingCall.customer_phone,
+                isUpdate: !!existingCall.customer_phone
+              });
             }
 
-            if (customerAddress && !existingCall.customer_address) {
+            if (customerAddress) {
               updates.customer_address = customerAddress;
-              console.log('✅ DB CALL: Customer address added:', customerAddress);
+              log.info('Customer address from tool', {
+                address: customerAddress,
+                previous: existingCall.customer_address,
+                isUpdate: !!existingCall.customer_address
+              });
             }
 
-            if (customerCity && !existingCall.customer_city) {
+            if (customerCity) {
               updates.customer_city = customerCity;
-              console.log('✅ DB CALL: Customer city added:', customerCity);
+              log.info('Customer city from tool', {
+                city: customerCity,
+                previous: existingCall.customer_city,
+                isUpdate: !!existingCall.customer_city
+              });
             }
 
-            if (customerState && !existingCall.customer_state) {
+            if (customerState) {
               updates.customer_state = customerState;
-              console.log('✅ DB CALL: Customer state added:', customerState);
+              log.info('Customer state from tool', {
+                state: customerState,
+                previous: existingCall.customer_state,
+                isUpdate: !!existingCall.customer_state
+              });
             }
 
-            if (customerZip && !existingCall.customer_zip) {
+            if (customerZip) {
               updates.customer_zip = customerZip;
-              console.log('✅ DB CALL: Customer zip added:', customerZip);
+              log.info('Customer zip from tool', {
+                zip: customerZip,
+                previous: existingCall.customer_zip,
+                isUpdate: !!existingCall.customer_zip
+              });
             }
 
             // Apply updates if any
@@ -1031,27 +1063,55 @@ export async function POST(req: NextRequest) {
     // HANDLE: Informational events (conversation-update, transcript, speech-update)
     // ========================================
     if (['conversation-update', 'transcript', 'speech-update', 'model-output', 'user-interrupted'].includes(messageType)) {
-      log.info('Informational event received', {
-        type: messageType,
-        callId: callData.callId
-      });
-
       // Extract customer data from conversation updates
       if (messageType === 'conversation-update') {
-        // Build transcript from conversation array
-        const conversation = message?.conversation || message?.messages || [];
-        const conversationText = conversation
-          .filter((msg: any) => msg.role === 'user' || msg.role === 'assistant')
-          .map((msg: any) => {
-            const role = msg.role === 'user' ? 'Customer' : 'Assistant';
-            const content = msg.content || msg.message || '';
-            return `${role}: ${content}`;
-          })
-          .join('\n');
+        // Get current call to check last processed message count
+        const { data: currentCall } = await supabase
+          .from('calls')
+          .select('id, raw_json')
+          .eq('vapi_call_id', callData.callId)
+          .single();
 
-        if (conversationText) {
-          console.log('📝 Conversation update - extracting customer data from:', conversationText.substring(0, 200));
-          await extractAndUpdateCustomerData(callData.callId, conversationText, supabase, log);
+        if (currentCall) {
+          const conversation = message?.conversation || message?.messages || [];
+          const lastProcessedCount = currentCall.raw_json?.last_processed_message_count || 0;
+          const currentMessageCount = conversation.length;
+
+          // Only process if there are new messages
+          if (currentMessageCount > lastProcessedCount) {
+            // Get only the NEW messages
+            const newMessages = conversation.slice(lastProcessedCount);
+
+            const newConversationText = newMessages
+              .filter((msg: any) => msg.role === 'user' || msg.role === 'assistant')
+              .map((msg: any) => {
+                const role = msg.role === 'user' ? 'Customer' : 'Assistant';
+                const content = msg.content || msg.message || '';
+                return `${role}: ${content}`;
+              })
+              .join('\n');
+
+            if (newConversationText && newConversationText.trim()) {
+              log.info('Processing new conversation messages', {
+                callId: callData.callId,
+                newMessageCount: newMessages.length,
+                totalMessages: currentMessageCount
+              });
+
+              await extractAndUpdateCustomerData(callData.callId, newConversationText, supabase, log);
+
+              // Update the last processed message count
+              await supabase
+                .from('calls')
+                .update({
+                  raw_json: {
+                    ...currentCall.raw_json,
+                    last_processed_message_count: currentMessageCount
+                  }
+                })
+                .eq('id', currentCall.id);
+            }
+          }
         }
       }
 
