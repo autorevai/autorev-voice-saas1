@@ -343,6 +343,8 @@ export async function POST(req: NextRequest) {
             vapi_call_id: callData.callId,
             started_at: callData.startedAt || new Date().toISOString(),
             outcome: 'unknown',
+            customer_name: callData.customer.name || null,
+            customer_phone: callData.customer.phone || null,
             raw_json: {
               call_id: callData.callId,
               assistant_id: callData.assistantId,
@@ -478,6 +480,8 @@ export async function POST(req: NextRequest) {
             duration_sec: callData.duration,
             transcript_url: transcriptUrl,
             outcome: 'unknown',
+            customer_name: callData.customer.name || null,
+            customer_phone: callData.customer.phone || null,
             raw_json: rawJson
           })
           .select()
@@ -639,6 +643,8 @@ export async function POST(req: NextRequest) {
             vapi_call_id: callData.callId,
             started_at: callData.startedAt || new Date().toISOString(),
             outcome: 'unknown',
+            customer_name: callData.customer.name || null,
+            customer_phone: callData.customer.phone || null,
             raw_json: {
               call_id: callData.callId,
               assistant_id: callData.assistantId,
@@ -690,6 +696,28 @@ export async function POST(req: NextRequest) {
             console.log('✅ OUTCOME updated to booked');
           }
         }
+      } else {
+        // Call exists - just check if booking was created and link it
+        await supabase
+          .from('bookings')
+          .update({ call_id: existingCall.id })
+          .eq('tenant_id', tenantId)
+          .like('notes', `%VAPI_CALL_ID:${callData.callId}%`)
+          .is('call_id', null);
+
+        // Update outcome to 'booked' if booking exists
+        const { data: linkedBookings } = await supabase
+          .from('bookings')
+          .select('id')
+          .eq('call_id', existingCall.id)
+          .limit(1);
+
+        if (linkedBookings && linkedBookings.length > 0) {
+          await supabase
+            .from('calls')
+            .update({ outcome: 'booked' })
+            .eq('id', existingCall.id);
+        }
       }
 
       const duration = Date.now() - startTime;
@@ -701,25 +729,69 @@ export async function POST(req: NextRequest) {
     }
 
     // ========================================
-    // HANDLE: tool-calls (for logging)
+    // HANDLE: tool-calls (extract customer data progressively)
     // ========================================
     if (messageType === 'tool-calls') {
       const toolNames = message?.toolCalls?.map((t: any) => t.function?.name) || [];
 
       console.log('🔧 TOOL CALLS:', toolNames.join(', '));
-      log.info('Tool calls received', {
-        callId: callData.callId,
-        toolCount: message?.toolCalls?.length || 0,
-        tools: toolNames
-      });
 
-      // Log each tool call for debugging
-      if (message?.toolCalls) {
+      // Find the call record
+      const { data: existingCall } = await supabase
+        .from('calls')
+        .select('id, customer_name, customer_phone')
+        .eq('vapi_call_id', callData.callId)
+        .single();
+
+      if (existingCall && message?.toolCalls) {
         for (const toolCall of message.toolCalls) {
-          log.info('Tool call details', {
-            name: toolCall.function?.name,
-            args: toolCall.function?.arguments
-          });
+          const toolName = toolCall.function?.name;
+
+          // Extract customer data from create_booking tool
+          if (toolName === 'create_booking') {
+            let params: any = {};
+
+            // Parse arguments (can be string or object)
+            if (typeof toolCall.function?.arguments === 'string') {
+              try {
+                params = JSON.parse(toolCall.function.arguments);
+              } catch {
+                params = toolCall.function?.parameters || {};
+              }
+            } else {
+              params = toolCall.function?.arguments || toolCall.function?.parameters || {};
+            }
+
+            // Extract customer info
+            const customerName = params.name || params.customer_name;
+            const customerPhone = params.phone || params.customer_phone || params.phone_number;
+
+            // Update call record progressively
+            const updates: any = {};
+
+            if (customerName && !existingCall.customer_name) {
+              updates.customer_name = customerName;
+              console.log('✅ DB CALL: Customer name added:', customerName);
+            }
+
+            if (customerPhone && !existingCall.customer_phone) {
+              updates.customer_phone = customerPhone;
+              console.log('✅ DB CALL: Customer phone added:', customerPhone);
+            }
+
+            // Apply updates if any
+            if (Object.keys(updates).length > 0) {
+              await supabase
+                .from('calls')
+                .update(updates)
+                .eq('id', existingCall.id);
+
+              log.info('Call updated with customer data from tool', {
+                callId: callData.callId,
+                updates: Object.keys(updates)
+              });
+            }
+          }
         }
       }
 

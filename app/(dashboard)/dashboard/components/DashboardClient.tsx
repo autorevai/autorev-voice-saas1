@@ -13,7 +13,8 @@ interface Call {
   ended_at: string | null
   duration_sec: number | null
   outcome: string | null
-  raw_json?: any
+  customer_name: string | null
+  customer_phone: string | null
   bookings?: {
     name: string
     phone: string
@@ -108,19 +109,19 @@ function getOutcomeColor(outcome: string | null): string {
 }
 
 function getCustomerName(call: Call): string {
-  // First try to get name from linked booking
+  // First try booking name (most accurate)
   if (call.bookings && call.bookings.length > 0 && call.bookings[0].name) {
     return call.bookings[0].name;
   }
 
-  // Fallback: Parse from raw_json (from VAPI's call data)
-  if (call.raw_json?.customer?.name) {
-    return call.raw_json.customer.name;
+  // Then try customer_name column (set from VAPI data)
+  if (call.customer_name) {
+    return call.customer_name;
   }
 
-  // Last resort: Show phone number if available
-  if (call.raw_json?.customer?.phone) {
-    return formatPhoneNumber(call.raw_json.customer.phone);
+  // Last resort: Show phone number
+  if (call.customer_phone) {
+    return formatPhoneNumber(call.customer_phone);
   }
 
   return 'Unknown Customer';

@@ -1,8 +1,7 @@
 import { createClient } from '../../../../../lib/supabase/server'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import TranscriptViewer from '../components/TranscriptViewer'
-import ToolResultCard from '../components/ToolResultCard'
+import { Phone, Clock, CheckCircle, XCircle, User, MapPin, Calendar } from 'lucide-react'
 
 interface Call {
   id: string
@@ -24,9 +23,25 @@ interface ToolResult {
   created_at: string
 }
 
+interface Booking {
+  id: string
+  name: string
+  phone: string
+  email: string | null
+  address: string
+  city: string | null
+  state: string | null
+  zip: string | null
+  confirmation: string
+  window_text: string
+  start_ts: string
+  summary: string | null
+}
+
 interface CallDetails {
   call: Call
   toolResults: ToolResult[]
+  booking: Booking | null
 }
 
 async function getCallDetails(callId: string): Promise<CallDetails | null> {
@@ -72,9 +87,17 @@ async function getCallDetails(callId: string): Promise<CallDetails | null> {
       .eq('call_id', callId)
       .order('created_at', { ascending: true })
 
+    // Get booking if exists
+    const { data: booking } = await db
+      .from('bookings')
+      .select('*')
+      .eq('call_id', callId)
+      .single()
+
     return {
       call,
-      toolResults: toolResults || []
+      toolResults: toolResults || [],
+      booking: booking || null
     }
   } catch (error) {
     console.error('Call details fetch error:', error)
@@ -91,29 +114,45 @@ function formatDuration(seconds: number | null): string {
 
 function formatDateTime(dateString: string): string {
   return new Date(dateString).toLocaleString('en-US', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
+    month: 'short',
     day: 'numeric',
+    year: 'numeric',
     hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit'
+    minute: '2-digit'
   })
 }
 
-
 function getOutcomeColor(outcome: string | null): string {
   switch (outcome) {
-    case 'completed': return 'text-green-600 bg-green-100'
-    case 'booked': return 'text-blue-600 bg-blue-100'
-    case 'handoff': return 'text-purple-600 bg-purple-100'
-    case 'failed': return 'text-red-600 bg-red-100'
-    case 'abandoned': return 'text-yellow-600 bg-yellow-100'
-    case 'no_answer': return 'text-gray-600 bg-gray-100'
-    case 'busy': return 'text-orange-600 bg-orange-100'
-    case 'unknown': return 'text-gray-600 bg-gray-100'
-    default: return 'text-gray-600 bg-gray-100'
+    case 'booked': return 'text-green-700 bg-green-50 border-green-200'
+    case 'handoff': return 'text-purple-700 bg-purple-50 border-purple-200'
+    case 'failed': return 'text-red-700 bg-red-50 border-red-200'
+    case 'abandoned': return 'text-yellow-700 bg-yellow-50 border-yellow-200'
+    case 'no_answer': return 'text-gray-700 bg-gray-50 border-gray-200'
+    case 'busy': return 'text-orange-700 bg-orange-50 border-orange-200'
+    default: return 'text-gray-700 bg-gray-50 border-gray-200'
   }
+}
+
+function getCustomerName(call: Call): string {
+  return call.raw_json?.customer?.name ||
+         call.raw_json?.customer?.phone ||
+         'Unknown'
+}
+
+function decodeTranscript(transcriptUrl: string | null): string {
+  if (!transcriptUrl) return 'No transcript available'
+
+  if (transcriptUrl.startsWith('data:')) {
+    try {
+      const base64Data = transcriptUrl.split(',')[1]
+      return decodeURIComponent(base64Data || '')
+    } catch {
+      return 'Error decoding transcript'
+    }
+  }
+
+  return transcriptUrl
 }
 
 export default async function CallDetailsPage({ params }: { params: Promise<{ id: string }> }) {
@@ -124,109 +163,178 @@ export default async function CallDetailsPage({ params }: { params: Promise<{ id
     notFound()
   }
 
-  const { call, toolResults } = callDetails
+  const { call, toolResults, booking } = callDetails
+  const customerName = getCustomerName(call)
+  const customerPhone = call.raw_json?.customer?.phone || 'N/A'
+  const summary = call.raw_json?.summary || 'No summary available'
+  const transcript = decodeTranscript(call.transcript_url)
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-6">
-          <Link 
-            href="/dashboard" 
-            className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-6 py-6">
+          <Link
+            href="/dashboard"
+            className="text-sm text-gray-600 hover:text-gray-900 font-medium mb-3 inline-block"
           >
             ← Back to Dashboard
           </Link>
-          <h1 className="text-2xl font-bold text-gray-900 mt-2">Call Details</h1>
-        </div>
-
-        {/* Call Info Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-sm font-medium text-gray-500 mb-2">Call ID</h3>
-            <p className="text-lg font-mono text-gray-900">{call.vapi_call_id}</p>
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-sm font-medium text-gray-500 mb-2">Started</h3>
-            <p className="text-lg text-gray-900">{formatDateTime(call.started_at)}</p>
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-sm font-medium text-gray-500 mb-2">Duration</h3>
-            <p className="text-lg text-gray-900">{formatDuration(call.duration_sec)}</p>
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-sm font-medium text-gray-500 mb-2">Outcome</h3>
-            <span className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full ${getOutcomeColor(call.outcome)}`}>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">{customerName}</h1>
+              <p className="text-sm text-gray-500 mt-1">{formatDateTime(call.started_at)}</p>
+            </div>
+            <div className={`px-4 py-2 rounded-lg border-2 font-semibold ${getOutcomeColor(call.outcome)}`}>
               {call.outcome || 'Unknown'}
-            </span>
+            </div>
           </div>
         </div>
+      </div>
 
-        {/* Transcript */}
-        <div className="mb-8">
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Transcript</h3>
-            {call.transcript_url ? (
-              <div className="bg-gray-50 rounded-lg p-4 max-h-96 overflow-y-auto">
-                <pre className="text-sm text-gray-700 whitespace-pre-wrap font-sans">
-                  {call.transcript_url.startsWith('data:')
-                    ? decodeURIComponent(call.transcript_url.split(',')[1] || '')
-                    : call.transcript_url}
-                </pre>
+      <div className="max-w-7xl mx-auto px-6 py-8">
+        {/* Quick Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center space-x-3">
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <Phone className="w-5 h-5 text-blue-600" />
               </div>
-            ) : (
-              <p className="text-gray-500 text-sm">No transcript available</p>
-            )}
+              <div>
+                <p className="text-sm text-gray-500">Phone</p>
+                <p className="text-lg font-semibold text-gray-900">{customerPhone}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center space-x-3">
+              <div className="p-2 bg-green-100 rounded-lg">
+                <Clock className="w-5 h-5 text-green-600" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Duration</p>
+                <p className="text-lg font-semibold text-gray-900">{formatDuration(call.duration_sec)}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center space-x-3">
+              <div className={`p-2 rounded-lg ${call.outcome === 'booked' ? 'bg-green-100' : 'bg-gray-100'}`}>
+                {call.outcome === 'booked' ? (
+                  <CheckCircle className="w-5 h-5 text-green-600" />
+                ) : (
+                  <XCircle className="w-5 h-5 text-gray-600" />
+                )}
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Status</p>
+                <p className="text-lg font-semibold text-gray-900">
+                  {call.outcome === 'booked' ? 'Booked' : 'Not Booked'}
+                </p>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Tool Results */}
-        <div className="bg-white shadow rounded-lg mb-8">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-lg font-medium text-gray-900">Tool Results ({toolResults.length})</h2>
-            <p className="text-sm text-gray-500 mt-1">AI assistant actions during this call</p>
-          </div>
-          <div className="p-6">
-            {toolResults.length === 0 ? (
-              <div className="text-center py-8">
-                <div className="text-gray-400 mb-2">
-                  <svg className="mx-auto h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                  </svg>
+        {/* Booking Details (if exists) */}
+        {booking && (
+          <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl shadow-sm border-2 border-blue-200 p-6 mb-8">
+            <div className="flex items-center space-x-2 mb-4">
+              <Calendar className="w-5 h-5 text-blue-600" />
+              <h2 className="text-xl font-bold text-gray-900">Booking Confirmed</h2>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-sm text-gray-600">Confirmation Code</p>
+                    <p className="text-lg font-bold text-blue-600">{booking.confirmation}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600">Customer</p>
+                    <p className="text-base font-semibold text-gray-900">{booking.name}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600">Contact</p>
+                    <p className="text-base text-gray-900">{booking.phone}</p>
+                    {booking.email && <p className="text-sm text-gray-600">{booking.email}</p>}
+                  </div>
                 </div>
-                <p className="text-gray-500">No tool calls recorded for this call.</p>
               </div>
+              <div>
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-sm text-gray-600">Appointment Time</p>
+                    <p className="text-base font-semibold text-gray-900">{booking.window_text}</p>
+                    <p className="text-sm text-gray-600">{formatDateTime(booking.start_ts)}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600">Service Address</p>
+                    <p className="text-base text-gray-900">{booking.address}</p>
+                    {booking.city && booking.state && (
+                      <p className="text-sm text-gray-600">{booking.city}, {booking.state} {booking.zip}</p>
+                    )}
+                  </div>
+                  {booking.summary && (
+                    <div>
+                      <p className="text-sm text-gray-600">Service Type</p>
+                      <p className="text-base text-gray-900">{booking.summary}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Main Content Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Call Summary */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <h2 className="text-lg font-bold text-gray-900 mb-4">Call Summary</h2>
+            <p className="text-gray-700 leading-relaxed">{summary}</p>
+          </div>
+
+          {/* AI Actions */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <h2 className="text-lg font-bold text-gray-900 mb-4">AI Actions ({toolResults.length})</h2>
+            {toolResults.length === 0 ? (
+              <p className="text-gray-500 text-sm">No AI actions taken during this call</p>
             ) : (
-              <div className="space-y-4">
-                {toolResults.map((result, index) => (
-                  <ToolResultCard key={result.id} result={result} index={index} />
+              <div className="space-y-3">
+                {toolResults.map((result) => (
+                  <div
+                    key={result.id}
+                    className={`p-4 rounded-lg border ${result.success ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-semibold text-gray-900 capitalize">
+                        {result.tool_name.replace(/_/g, ' ')}
+                      </span>
+                      {result.success ? (
+                        <CheckCircle className="w-5 h-5 text-green-600" />
+                      ) : (
+                        <XCircle className="w-5 h-5 text-red-600" />
+                      )}
+                    </div>
+                    {result.response_json?.say && (
+                      <p className="text-sm text-gray-600 italic">"{result.response_json.say}"</p>
+                    )}
+                  </div>
                 ))}
               </div>
             )}
           </div>
         </div>
 
-        {/* Call Transcript */}
-        <div className="bg-white shadow rounded-lg">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-lg font-medium text-gray-900">Call Transcript</h2>
-          </div>
-          <div className="p-6">
-            <TranscriptViewer call={call} />
-          </div>
-        </div>
-
-        {/* Raw Data */}
-        <div className="bg-white shadow rounded-lg">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-lg font-medium text-gray-900">Raw Call Data</h2>
-          </div>
-          <div className="p-6">
-            <pre className="bg-gray-50 rounded p-4 text-xs overflow-x-auto">
-              {JSON.stringify(call.raw_json, null, 2)}
+        {/* Transcript */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mt-8">
+          <h2 className="text-lg font-bold text-gray-900 mb-4">Full Transcript</h2>
+          <div className="bg-gray-50 rounded-lg p-6 max-h-96 overflow-y-auto">
+            <pre className="text-sm text-gray-700 whitespace-pre-wrap font-sans leading-relaxed">
+              {transcript}
             </pre>
           </div>
         </div>

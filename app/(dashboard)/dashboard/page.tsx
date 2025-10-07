@@ -10,7 +10,8 @@ interface Call {
   ended_at: string | null
   duration_sec: number | null
   outcome: string
-  raw_json?: any
+  customer_name: string | null
+  customer_phone: string | null
   bookings?: { name: string, phone: string }[] | null
 }
 
@@ -150,7 +151,8 @@ async function getDashboardData(): Promise<DashboardData> {
         ended_at,
         duration_sec,
         outcome,
-        raw_json,
+        customer_name,
+        customer_phone,
         bookings(name, phone)
       `)
       .eq('tenant_id', tenantId)
