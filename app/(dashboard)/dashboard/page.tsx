@@ -3,6 +3,9 @@ import DashboardClient from './components/DashboardClient'
 import PhoneNumberDisplay from './components/PhoneNumberDisplay'
 import PhoneNumberCard from './components/PhoneNumberCard'
 import CopyButton from './components/CopyButton'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { TrendingUp, TrendingDown } from 'lucide-react'
 
 interface Call {
   id: string
@@ -320,20 +323,107 @@ export default async function DashboardPage() {
                   </div>
                 </div>
 
-                {/* Quick Stats */}
-                <div className="grid grid-cols-3 gap-4 pt-4 border-t border-gray-100">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-gray-900">{data.callsToday}</div>
-                    <div className="text-sm text-gray-500">Calls Today</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-gray-900">{data.bookingsToday}</div>
-                    <div className="text-sm text-gray-500">Bookings Today</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-gray-900">{data.conversionRate}%</div>
-                    <div className="text-sm text-gray-500">Conversion Rate</div>
-                  </div>
+                {/* Metrics Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-4 border-t border-gray-100">
+                  {/* Calls Today */}
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardDescription>Calls Today</CardDescription>
+                      <CardTitle className="text-3xl font-bold">{data.callsToday}</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {data.callsTodayTrend !== 0 && (
+                        <div className="flex items-center text-xs">
+                          {data.callsTodayTrend > 0 ? (
+                            <>
+                              <TrendingUp className="w-3 h-3 mr-1 text-green-600" />
+                              <span className="text-green-600">{data.callsTodayTrend}% from yesterday</span>
+                            </>
+                          ) : (
+                            <>
+                              <TrendingDown className="w-3 h-3 mr-1 text-red-600" />
+                              <span className="text-red-600">{Math.abs(data.callsTodayTrend)}% from yesterday</span>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  {/* Bookings Today */}
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardDescription>Bookings Today</CardDescription>
+                      <CardTitle className="text-3xl font-bold">{data.bookingsToday}</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {data.bookingsTodayTrend !== 0 && (
+                        <div className="flex items-center text-xs">
+                          {data.bookingsTodayTrend > 0 ? (
+                            <>
+                              <TrendingUp className="w-3 h-3 mr-1 text-green-600" />
+                              <span className="text-green-600">{data.bookingsTodayTrend}% from yesterday</span>
+                            </>
+                          ) : (
+                            <>
+                              <TrendingDown className="w-3 h-3 mr-1 text-red-600" />
+                              <span className="text-red-600">{Math.abs(data.bookingsTodayTrend)}% from yesterday</span>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  {/* Total Bookings */}
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardDescription>Total Bookings</CardDescription>
+                      <CardTitle className="text-3xl font-bold">{data.totalBookings}</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {data.totalBookingsTrend !== 0 && (
+                        <div className="flex items-center text-xs">
+                          {data.totalBookingsTrend > 0 ? (
+                            <>
+                              <TrendingUp className="w-3 h-3 mr-1 text-green-600" />
+                              <span className="text-green-600">{data.totalBookingsTrend}% from last week</span>
+                            </>
+                          ) : (
+                            <>
+                              <TrendingDown className="w-3 h-3 mr-1 text-red-600" />
+                              <span className="text-red-600">{Math.abs(data.totalBookingsTrend)}% from last week</span>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  {/* Conversion Rate */}
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardDescription>Conversion Rate</CardDescription>
+                      <CardTitle className="text-3xl font-bold">{data.conversionRate}%</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {data.conversionRateTrend !== 0 && (
+                        <div className="flex items-center text-xs">
+                          {data.conversionRateTrend > 0 ? (
+                            <>
+                              <TrendingUp className="w-3 h-3 mr-1 text-green-600" />
+                              <span className="text-green-600">{data.conversionRateTrend}% from yesterday</span>
+                            </>
+                          ) : (
+                            <>
+                              <TrendingDown className="w-3 h-3 mr-1 text-red-600" />
+                              <span className="text-red-600">{Math.abs(data.conversionRateTrend)}% from yesterday</span>
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
                 </div>
               </div>
             </div>
