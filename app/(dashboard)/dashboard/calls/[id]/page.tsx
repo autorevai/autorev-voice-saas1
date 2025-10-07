@@ -199,8 +199,13 @@ function decodeTranscript(transcriptUrl: string | null): string {
   if (transcriptUrl.startsWith('data:')) {
     try {
       const base64Data = transcriptUrl.split(',')[1]
-      return decodeURIComponent(base64Data || '')
-    } catch {
+      if (!base64Data) return 'No transcript data'
+
+      // Decode base64 to text
+      const decodedText = Buffer.from(base64Data, 'base64').toString('utf-8')
+      return decodedText
+    } catch (error) {
+      console.error('Error decoding transcript:', error)
       return 'Error decoding transcript'
     }
   }

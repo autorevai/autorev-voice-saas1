@@ -245,15 +245,26 @@ async function extractAndUpdateCustomerData(
 
     // Extract customer information from transcript using regex patterns
     const updates: any = {};
-    
-    // Extract name patterns: "My name is John", "I'm Sarah", "This is Mike"
+
+    // Extract name patterns: "My name is John", "I'm Sarah", "This is Mike", "Yes. This is Chris Jones"
     if (!existingCall.customer_name) {
-      const nameMatch = transcript.match(/(?:my name is|i'm|this is|i am)\s+([a-zA-Z\s]+?)(?:\s|$|\.|,)/i);
-      if (nameMatch) {
-        const name = nameMatch[1].trim();
-        if (name.length > 1 && name.length < 50) {
-          updates.customer_name = name;
-          console.log('✅ DB CALL: Customer name extracted from conversation:', name);
+      // Try multiple patterns
+      const namePatterns = [
+        /(?:my name is|i'm|this is|i am|yes\.?\s+this is)\s+([A-Z][a-z]+\s+[A-Z][a-z]+)/i,
+        /Customer:\s*(?:Yes\.?\s+)?(?:This is|I'm|My name is)\s+([A-Z][a-z]+\s+[A-Z][a-z]+)/i,
+        /(?:^|\n)(?:Yes\.?\s+)?(?:This is|I'm|My name is)\s+([A-Z][a-z]+\s+[A-Z][a-z]+)/im
+      ];
+
+      for (const pattern of namePatterns) {
+        const nameMatch = transcript.match(pattern);
+        if (nameMatch) {
+          const name = nameMatch[1].trim();
+          // Validate it's a proper name (two words, capitalized)
+          if (name.length > 3 && name.length < 50 && name.includes(' ')) {
+            updates.customer_name = name;
+            console.log('✅ DB CALL: Customer name extracted from conversation:', name);
+            break;
+          }
         }
       }
     }
@@ -275,26 +286,44 @@ async function extractAndUpdateCustomerData(
       }
     }
 
-    // Extract address patterns: "My address is 123 Main St", "I live at 456 Oak Ave"
+    // Extract address patterns: "My address is 123 Main St", "I live at 456 Oak Ave", "123 Palmer Road"
     if (!existingCall.customer_address) {
-      const addressMatch = transcript.match(/(?:my address is|i live at|address is|located at)\s+([^,\.]+?)(?:\s|$|\.|,)/i);
-      if (addressMatch) {
-        const address = addressMatch[1].trim();
-        if (address.length > 5 && address.length < 200) {
-          updates.customer_address = address;
-          console.log('✅ DB CALL: Customer address extracted from conversation:', address);
+      const addressPatterns = [
+        /(?:my address is|i live at|address is|located at|it's)\s+(\d+\s+[A-Za-z\s]+(?:Street|St|Road|Rd|Avenue|Ave|Boulevard|Blvd|Lane|Ln|Drive|Dr|Court|Ct|Place|Pl|Way))/i,
+        /(?:at|on)\s+(\d+\s+[A-Za-z\s]+(?:Street|St|Road|Rd|Avenue|Ave|Boulevard|Blvd|Lane|Ln|Drive|Dr|Court|Ct|Place|Pl|Way))/i,
+        /(\d+\s+[A-Za-z]+\s+(?:Street|St|Road|Rd|Avenue|Ave|Boulevard|Blvd|Lane|Ln|Drive|Dr|Court|Ct|Place|Pl|Way))/i
+      ];
+
+      for (const pattern of addressPatterns) {
+        const addressMatch = transcript.match(pattern);
+        if (addressMatch) {
+          const address = addressMatch[1].trim();
+          if (address.length > 5 && address.length < 200) {
+            updates.customer_address = address;
+            console.log('✅ DB CALL: Customer address extracted from conversation:', address);
+            break;
+          }
         }
       }
     }
 
-    // Extract city patterns: "I'm in Columbus", "City is Dublin", "Located in Westerville"
+    // Extract city patterns: "I'm in Columbus", "City is Dublin", "Columbus, Ohio"
     if (!existingCall.customer_city) {
-      const cityMatch = transcript.match(/(?:i'm in|city is|located in|i live in)\s+([a-zA-Z\s]+?)(?:\s|$|\.|,|,)/i);
-      if (cityMatch) {
-        const city = cityMatch[1].trim();
-        if (city.length > 1 && city.length < 50) {
-          updates.customer_city = city;
-          console.log('✅ DB CALL: Customer city extracted from conversation:', city);
+      const cityPatterns = [
+        /(?:i'm in|city is|located in|i live in|in)\s+([A-Z][a-z]+(?:\s[A-Z][a-z]+)?),?\s+(?:Ohio|OH)/i,
+        /,\s*([A-Z][a-z]+(?:\s[A-Z][a-z]+)?),?\s+(?:Ohio|OH)/i,
+        /(?:i'm in|city is|located in|i live in)\s+([A-Z][a-z]+(?:\s[A-Z][a-z]+)?)/i
+      ];
+
+      for (const pattern of cityPatterns) {
+        const cityMatch = transcript.match(pattern);
+        if (cityMatch) {
+          const city = cityMatch[1].trim();
+          if (city.length > 1 && city.length < 50 && !city.match(/^(yes|no|the|and|or)$/i)) {
+            updates.customer_city = city;
+            console.log('✅ DB CALL: Customer city extracted from conversation:', city);
+            break;
+          }
         }
       }
     }
@@ -309,13 +338,22 @@ async function extractAndUpdateCustomerData(
       }
     }
 
-    // Extract zip patterns: "43068", "Zip is 43068", "My zip is 43068"
+    // Extract zip patterns: "43068", "Zip is 43068", "My zip is 43068", "Ohio 43068"
     if (!existingCall.customer_zip) {
-      const zipMatch = transcript.match(/(?:zip is|my zip is|zip code is|postal code is)\s*(\d{5}(?:-\d{4})?)/i);
-      if (zipMatch) {
-        const zip = zipMatch[1];
-        updates.customer_zip = zip;
-        console.log('✅ DB CALL: Customer zip extracted from conversation:', zip);
+      const zipPatterns = [
+        /(?:zip code is|zip is|my zip is|postal code is)\s*(\d{5}(?:-\d{4})?)/i,
+        /(?:Ohio|OH)\s+(\d{5}(?:-\d{4})?)/i,
+        /\b(\d{5}(?:-\d{4})?)\b/
+      ];
+
+      for (const pattern of zipPatterns) {
+        const zipMatch = transcript.match(pattern);
+        if (zipMatch) {
+          const zip = zipMatch[1];
+          updates.customer_zip = zip;
+          console.log('✅ DB CALL: Customer zip extracted from conversation:', zip);
+          break;
+        }
       }
     }
 
@@ -999,8 +1037,22 @@ export async function POST(req: NextRequest) {
       });
 
       // Extract customer data from conversation updates
-      if (messageType === 'conversation-update' && message?.transcript) {
-        await extractAndUpdateCustomerData(callData.callId, message.transcript, supabase, log);
+      if (messageType === 'conversation-update') {
+        // Build transcript from conversation array
+        const conversation = message?.conversation || message?.messages || [];
+        const conversationText = conversation
+          .filter((msg: any) => msg.role === 'user' || msg.role === 'assistant')
+          .map((msg: any) => {
+            const role = msg.role === 'user' ? 'Customer' : 'Assistant';
+            const content = msg.content || msg.message || '';
+            return `${role}: ${content}`;
+          })
+          .join('\n');
+
+        if (conversationText) {
+          console.log('📝 Conversation update - extracting customer data from:', conversationText.substring(0, 200));
+          await extractAndUpdateCustomerData(callData.callId, conversationText, supabase, log);
+        }
       }
 
       const duration = Date.now() - startTime;
