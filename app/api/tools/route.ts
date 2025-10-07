@@ -83,10 +83,29 @@ export async function POST(req: NextRequest) {
     // Parse preferred time into actual datetime
     const bookingStartTime = parsePreferredTime(sanitized.preferred_time || 'tomorrow 9am');
 
-    // Store booking with vapi_call_id in metadata for later linking
+    // Look up database call ID using VAPI call ID
+    let dbCallId = null;
+    if (callId) {
+      const { data: callRecord } = await db
+        .from('calls')
+        .select('id')
+        .eq('vapi_call_id', callId)
+        .single();
+
+      dbCallId = callRecord?.id || null;
+
+      if (dbCallId) {
+        log.info('Found database call ID for booking', {
+          vapiCallId: callId,
+          dbCallId
+        });
+      }
+    }
+
+    // Store booking with call_id if found
     const { data: booking, error } = await db.from('bookings').insert({
       tenant_id: tenantId,
-      call_id: null, // Will be linked later in end-of-call-report
+      call_id: dbCallId, // Link to calls table if found
       confirmation: confirmation,
       window_text: sanitized.preferred_time || 'Next available',
       start_ts: bookingStartTime,
@@ -121,11 +140,24 @@ export async function POST(req: NextRequest) {
 
     console.log('✅ Booking created:', confirmation, '/', sanitized.name);
 
+    // Update calls table outcome to 'booked' immediately
+    if (dbCallId) {
+      await db
+        .from('calls')
+        .update({ outcome: 'booked' })
+        .eq('id', dbCallId);
+
+      log.info('Updated call outcome to booked', {
+        dbCallId,
+        bookingId: booking.id
+      });
+    }
+
     // Log tool result with customer data for later processing in end-of-call-report
-    if (callId) {
+    if (dbCallId) {
       try {
         await db.from('tool_results').insert({
-          call_id: callId,
+          call_id: dbCallId,
           tool_name: 'create_booking',
           request_json: sanitized,
           response_json: {
@@ -137,7 +169,7 @@ export async function POST(req: NextRequest) {
         });
         log.info('Booking tool result logged', {
           tool: 'create_booking',
-          callId,
+          dbCallId,
           confirmation,
           customerName: sanitized.name
         });
@@ -145,12 +177,13 @@ export async function POST(req: NextRequest) {
         log.warn('Failed to log booking tool result', {
           error: toolError.message,
           tool: 'create_booking',
-          callId
+          dbCallId
         });
       }
     } else {
-      log.warn('Skipping tool result logging - no call_id', {
+      log.warn('Skipping tool result logging - no database call_id found', {
         tool: 'create_booking',
+        vapiCallId: callId,
         confirmation
       });
     }
