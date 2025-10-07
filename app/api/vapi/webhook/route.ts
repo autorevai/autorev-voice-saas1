@@ -511,7 +511,7 @@ export async function POST(req: NextRequest) {
             ended_at: callData.endedAt || new Date().toISOString(),
             duration_sec: callData.duration,
             transcript_url: transcriptUrl,
-            outcome: 'completed',
+            outcome: 'unknown',
             raw_json: rawJson
           })
           .select()
@@ -556,7 +556,7 @@ export async function POST(req: NextRequest) {
           ended_at: callData.endedAt || new Date().toISOString(),
           duration_sec: callData.duration,
           transcript_url: transcriptUrl,
-          outcome: 'completed',
+          outcome: 'unknown',
           raw_json: rawJson
         })
         .eq('vapi_call_id', callData.callId)

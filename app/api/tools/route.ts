@@ -31,41 +31,56 @@ export async function POST(req: NextRequest) {
 
     const args = await req.json().catch(() => ({}));
 
-    // Extract call ID from VAPI message format or headers
+    // Extract call ID and assistant ID from VAPI message format or headers
     const callId = req.headers.get('x-vapi-call-id') ||
                    args?.message?.call?.id ||
                    args?.call?.id || '';
 
-    // Get tenant ID (from header or demo fallback)
-    const tenantId = req.headers.get('x-tenant-id') || process.env.DEMO_TENANT_ID;
+    const assistantId = args?.message?.call?.assistantId ||
+                       args?.call?.assistantId || '';
 
-    log.info('Processing tool call', { 
-      tool, 
-      callId, 
-      tenantId, 
-      args,
+    // Get tenant ID - try multiple strategies
+    const db = createClient();
+    let tenantId = req.headers.get('x-tenant-id') || null;
+
+    // Strategy 1: Look up tenant from assistants table using assistant_id
+    if (!tenantId && assistantId) {
+      log.info('Looking up tenant from assistant', { assistantId });
+      const { data: assistant } = await db
+        .from('assistants')
+        .select('tenant_id')
+        .eq('vapi_assistant_id', assistantId)
+        .single();
+
+      if (assistant) {
+        tenantId = assistant.tenant_id;
+        log.info('Found tenant from assistant lookup', { assistantId, tenantId });
+      } else {
+        log.warn('No assistant found for tenant lookup', { assistantId });
+      }
+    }
+
+    // Strategy 2: Fallback to demo tenant only if absolutely necessary
+    if (!tenantId) {
+      tenantId = process.env.DEMO_TENANT_ID || null;
+      log.warn('Using demo tenant as fallback', { tenantId });
+    }
+
+    log.info('Processing tool call', {
+      tool,
+      callId,
+      assistantId,
+      tenantId,
       timestamp: new Date().toISOString()
     });
-  
-  if (!tenantId) {
-    console.warn('No tenant_id provided, using demo tenant');
-    // For now, use a fallback tenant ID if none provided
-    const fallbackTenantId = '00000000-0000-0000-0000-000000000001';
-    console.log('Using fallback tenant ID:', fallbackTenantId);
-  }
 
   if (tool === 'create_booking') {
-    log.info('Processing create_booking tool', { 
-      tool, 
-      callId, 
-      tenantId: tenantId || 'fallback',
+    log.info('Processing create_booking tool', {
+      tool,
+      callId,
+      tenantId,
       rawArgs: args
     });
-    
-    const db = createClient();
-    
-    // Use fallback tenant ID if none provided
-    const finalTenantId = tenantId || '00000000-0000-0000-0000-000000000001';
     
     // Extract data from VAPI message format
     const extraction = extractBookingData(args);
@@ -107,7 +122,7 @@ export async function POST(req: NextRequest) {
 
     // Save to database
     log.info('Inserting booking into database', {
-      tenantId: finalTenantId,
+      tenantId,
       confirmation,
       bookingData: {
         name: bookingData.name,
@@ -119,7 +134,7 @@ export async function POST(req: NextRequest) {
     });
 
     const { data: booking, error } = await db.from('bookings').insert({
-      tenant_id: finalTenantId,
+      tenant_id: tenantId,
       confirmation: confirmation,
       window_text: sanitized.preferred_time || 'Next available',
       start_ts: bookingStartTime,
@@ -208,10 +223,10 @@ export async function POST(req: NextRequest) {
   }
 
   if (tool === 'quote_estimate') {
-    log.info('Processing quote_estimate tool', { 
-      tool, 
-      callId, 
-      tenantId: tenantId || 'fallback',
+    log.info('Processing quote_estimate tool', {
+      tool,
+      callId,
+      tenantId,
       rawArgs: args
     });
     
@@ -238,7 +253,6 @@ export async function POST(req: NextRequest) {
     });
     
     // Log tool result (only if we have a valid call_id)
-    const db = createClient();
 
     if (callId) {
       try {
@@ -274,10 +288,10 @@ export async function POST(req: NextRequest) {
   }
 
   if (tool === 'handoff_sms') {
-    log.info('Processing handoff_sms tool', { 
-      tool, 
-      callId, 
-      tenantId: tenantId || 'fallback',
+    log.info('Processing handoff_sms tool', {
+      tool,
+      callId,
+      tenantId,
       rawArgs: args
     });
     
@@ -288,9 +302,8 @@ export async function POST(req: NextRequest) {
       toolData,
       messageFormat: extraction.format
     });
-    
+
     // Log handoff request (only if we have a valid call_id)
-    const db = createClient();
 
     if (callId) {
       try {
@@ -325,10 +338,10 @@ export async function POST(req: NextRequest) {
   }
 
   if (tool === 'update_crm_note') {
-    log.info('Processing update_crm_note tool', { 
-      tool, 
-      callId, 
-      tenantId: tenantId || 'fallback',
+    log.info('Processing update_crm_note tool', {
+      tool,
+      callId,
+      tenantId,
       rawArgs: args
     });
     
@@ -339,9 +352,8 @@ export async function POST(req: NextRequest) {
       toolData,
       messageFormat: extraction.format
     });
-    
+
     // Log CRM note (only if we have a valid call_id)
-    const db = createClient();
 
     if (callId) {
       try {
