@@ -1,4 +1,4 @@
-import { createClient } from '../../../../../lib/db'
+import { createClient } from '../../../../../lib/supabase/server'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import TranscriptViewer from '../components/TranscriptViewer'
