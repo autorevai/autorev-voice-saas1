@@ -101,8 +101,7 @@ export async function POST(req: NextRequest) {
       summary: sanitized.service_type,
       equipment: sanitized.equipment_info || null,
       priority: sanitized.service_type?.toLowerCase().includes('emergency') ? 'urgent' : 'standard',
-      source: 'voice_call',
-      notes: `VAPI_CALL_ID:${callId}` // Store vapi_call_id for later linking
+      source: 'voice_call'
     }).select().single();
     
     if (error) {

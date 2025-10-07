@@ -220,6 +220,128 @@ function extractCallData(event: any): {
 }
 
 // ========================================
+// HELPER FUNCTIONS
+// ========================================
+
+// Extract customer data from conversation transcript and update calls table
+async function extractAndUpdateCustomerData(
+  callId: string, 
+  transcript: string, 
+  supabase: any, 
+  log: any
+) {
+  try {
+    // Get current call data
+    const { data: existingCall } = await supabase
+      .from('calls')
+      .select('id, customer_name, customer_phone, customer_address, customer_city, customer_state, customer_zip')
+      .eq('vapi_call_id', callId)
+      .single();
+
+    if (!existingCall) {
+      log.warn('Call not found for customer data extraction', { callId });
+      return;
+    }
+
+    // Extract customer information from transcript using regex patterns
+    const updates: any = {};
+    
+    // Extract name patterns: "My name is John", "I'm Sarah", "This is Mike"
+    if (!existingCall.customer_name) {
+      const nameMatch = transcript.match(/(?:my name is|i'm|this is|i am)\s+([a-zA-Z\s]+?)(?:\s|$|\.|,)/i);
+      if (nameMatch) {
+        const name = nameMatch[1].trim();
+        if (name.length > 1 && name.length < 50) {
+          updates.customer_name = name;
+          console.log('✅ DB CALL: Customer name extracted from conversation:', name);
+        }
+      }
+    }
+
+    // Extract phone patterns: "My number is 555-1234", "Call me at 740-739-3487"
+    if (!existingCall.customer_phone) {
+      const phoneMatch = transcript.match(/(?:my number is|call me at|my phone is|number is)\s*([0-9\-\(\)\s\+]+)/i);
+      if (phoneMatch) {
+        let phone = phoneMatch[1].replace(/[^\d]/g, '');
+        if (phone.length === 10) {
+          phone = '+1' + phone;
+        } else if (phone.length === 11 && phone.startsWith('1')) {
+          phone = '+' + phone;
+        }
+        if (phone.length >= 10) {
+          updates.customer_phone = phone;
+          console.log('✅ DB CALL: Customer phone extracted from conversation:', phone);
+        }
+      }
+    }
+
+    // Extract address patterns: "My address is 123 Main St", "I live at 456 Oak Ave"
+    if (!existingCall.customer_address) {
+      const addressMatch = transcript.match(/(?:my address is|i live at|address is|located at)\s+([^,\.]+?)(?:\s|$|\.|,)/i);
+      if (addressMatch) {
+        const address = addressMatch[1].trim();
+        if (address.length > 5 && address.length < 200) {
+          updates.customer_address = address;
+          console.log('✅ DB CALL: Customer address extracted from conversation:', address);
+        }
+      }
+    }
+
+    // Extract city patterns: "I'm in Columbus", "City is Dublin", "Located in Westerville"
+    if (!existingCall.customer_city) {
+      const cityMatch = transcript.match(/(?:i'm in|city is|located in|i live in)\s+([a-zA-Z\s]+?)(?:\s|$|\.|,|,)/i);
+      if (cityMatch) {
+        const city = cityMatch[1].trim();
+        if (city.length > 1 && city.length < 50) {
+          updates.customer_city = city;
+          console.log('✅ DB CALL: Customer city extracted from conversation:', city);
+        }
+      }
+    }
+
+    // Extract state patterns: "Ohio", "In Ohio", "State is Ohio"
+    if (!existingCall.customer_state) {
+      const stateMatch = transcript.match(/(?:in\s+|state is\s+|i'm in\s+)?(ohio|california|texas|florida|new york|illinois|pennsylvania|georgia|north carolina|michigan|new jersey|virginia|washington|arizona|massachusetts|tennessee|indiana|missouri|maryland|wisconsin|colorado|minnesota|south carolina|alabama|louisiana|kentucky|oregon|oklahoma|connecticut|utah|iowa|nevada|arkansas|mississippi|kansas|new mexico|nebraska|west virginia|idaho|hawaii|new hampshire|maine|montana|rhode island|delaware|south dakota|north dakota|alaska|vermont|wyoming)/i);
+      if (stateMatch) {
+        const state = stateMatch[1];
+        updates.customer_state = state;
+        console.log('✅ DB CALL: Customer state extracted from conversation:', state);
+      }
+    }
+
+    // Extract zip patterns: "43068", "Zip is 43068", "My zip is 43068"
+    if (!existingCall.customer_zip) {
+      const zipMatch = transcript.match(/(?:zip is|my zip is|zip code is|postal code is)\s*(\d{5}(?:-\d{4})?)/i);
+      if (zipMatch) {
+        const zip = zipMatch[1];
+        updates.customer_zip = zip;
+        console.log('✅ DB CALL: Customer zip extracted from conversation:', zip);
+      }
+    }
+
+    // Apply updates if any
+    if (Object.keys(updates).length > 0) {
+      await supabase
+        .from('calls')
+        .update(updates)
+        .eq('vapi_call_id', callId);
+
+      log.info('Customer data updated from conversation', {
+        callId,
+        updates,
+        fieldsUpdated: Object.keys(updates)
+      });
+    }
+
+  } catch (error: any) {
+    log.error('Failed to extract customer data from conversation', {
+      error: error.message,
+      callId
+    });
+  }
+}
+
+// ========================================
 // MAIN HANDLER
 // ========================================
 export async function POST(req: NextRequest) {
@@ -875,6 +997,11 @@ export async function POST(req: NextRequest) {
         type: messageType,
         callId: callData.callId
       });
+
+      // Extract customer data from conversation updates
+      if (messageType === 'conversation-update' && message?.transcript) {
+        await extractAndUpdateCustomerData(callData.callId, message.transcript, supabase, log);
+      }
 
       const duration = Date.now() - startTime;
       return NextResponse.json({
