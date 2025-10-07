@@ -252,6 +252,19 @@ async function getDashboardData(): Promise<DashboardData> {
   }
 }
 
+function formatPhoneNumber(phone: string): string {
+  const digits = phone.replace(/\D/g, '')
+
+  if (digits.length === 11 && digits.startsWith('1')) {
+    const usNumber = digits.substring(1)
+    return `${usNumber.substring(0, 3)}-${usNumber.substring(3, 6)}-${usNumber.substring(6)}`
+  } else if (digits.length === 10) {
+    return `${digits.substring(0, 3)}-${digits.substring(3, 6)}-${digits.substring(6)}`
+  }
+
+  return phone
+}
+
 export default async function DashboardPage() {
   let data: DashboardData
 
@@ -305,7 +318,7 @@ export default async function DashboardPage() {
                 <div className="flex items-center justify-between mb-4">
                   <div>
                     <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wide">Customer Phone Number</h3>
-                    <p className="text-3xl font-bold text-gray-900 font-mono mt-1">{data.assistant.vapi_number_id}</p>
+                    <p className="text-3xl font-bold text-gray-900 font-mono mt-1">{formatPhoneNumber(data.assistant.vapi_number_id)}</p>
                   </div>
                   <div className="flex space-x-3">
                     {data.assistant?.vapi_number_id && (
@@ -324,24 +337,24 @@ export default async function DashboardPage() {
                 </div>
 
                 {/* Metrics Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-4 border-t border-gray-100">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pt-6 border-t border-gray-200">
                   {/* Calls Today */}
-                  <Card>
+                  <Card className="border-l-4 border-l-blue-500 shadow-md hover:shadow-lg transition-shadow">
                     <CardHeader className="pb-2">
-                      <CardDescription>Calls Today</CardDescription>
-                      <CardTitle className="text-3xl font-bold">{data.callsToday}</CardTitle>
+                      <CardDescription className="text-xs font-semibold uppercase tracking-wider">Calls Today</CardDescription>
+                      <CardTitle className="text-4xl font-extrabold text-blue-600">{data.callsToday}</CardTitle>
                     </CardHeader>
                     <CardContent>
                       {data.callsTodayTrend !== 0 && (
-                        <div className="flex items-center text-xs">
+                        <div className="flex items-center text-xs font-medium">
                           {data.callsTodayTrend > 0 ? (
                             <>
-                              <TrendingUp className="w-3 h-3 mr-1 text-green-600" />
+                              <TrendingUp className="w-4 h-4 mr-1 text-green-600" />
                               <span className="text-green-600">{data.callsTodayTrend}% from yesterday</span>
                             </>
                           ) : (
                             <>
-                              <TrendingDown className="w-3 h-3 mr-1 text-red-600" />
+                              <TrendingDown className="w-4 h-4 mr-1 text-red-600" />
                               <span className="text-red-600">{Math.abs(data.callsTodayTrend)}% from yesterday</span>
                             </>
                           )}
@@ -351,22 +364,22 @@ export default async function DashboardPage() {
                   </Card>
 
                   {/* Bookings Today */}
-                  <Card>
+                  <Card className="border-l-4 border-l-green-500 shadow-md hover:shadow-lg transition-shadow">
                     <CardHeader className="pb-2">
-                      <CardDescription>Bookings Today</CardDescription>
-                      <CardTitle className="text-3xl font-bold">{data.bookingsToday}</CardTitle>
+                      <CardDescription className="text-xs font-semibold uppercase tracking-wider">Bookings Today</CardDescription>
+                      <CardTitle className="text-4xl font-extrabold text-green-600">{data.bookingsToday}</CardTitle>
                     </CardHeader>
                     <CardContent>
                       {data.bookingsTodayTrend !== 0 && (
-                        <div className="flex items-center text-xs">
+                        <div className="flex items-center text-xs font-medium">
                           {data.bookingsTodayTrend > 0 ? (
                             <>
-                              <TrendingUp className="w-3 h-3 mr-1 text-green-600" />
+                              <TrendingUp className="w-4 h-4 mr-1 text-green-600" />
                               <span className="text-green-600">{data.bookingsTodayTrend}% from yesterday</span>
                             </>
                           ) : (
                             <>
-                              <TrendingDown className="w-3 h-3 mr-1 text-red-600" />
+                              <TrendingDown className="w-4 h-4 mr-1 text-red-600" />
                               <span className="text-red-600">{Math.abs(data.bookingsTodayTrend)}% from yesterday</span>
                             </>
                           )}
@@ -376,22 +389,22 @@ export default async function DashboardPage() {
                   </Card>
 
                   {/* Total Bookings */}
-                  <Card>
+                  <Card className="border-l-4 border-l-purple-500 shadow-md hover:shadow-lg transition-shadow">
                     <CardHeader className="pb-2">
-                      <CardDescription>Total Bookings</CardDescription>
-                      <CardTitle className="text-3xl font-bold">{data.totalBookings}</CardTitle>
+                      <CardDescription className="text-xs font-semibold uppercase tracking-wider">Total Bookings</CardDescription>
+                      <CardTitle className="text-4xl font-extrabold text-purple-600">{data.totalBookings}</CardTitle>
                     </CardHeader>
                     <CardContent>
                       {data.totalBookingsTrend !== 0 && (
-                        <div className="flex items-center text-xs">
+                        <div className="flex items-center text-xs font-medium">
                           {data.totalBookingsTrend > 0 ? (
                             <>
-                              <TrendingUp className="w-3 h-3 mr-1 text-green-600" />
+                              <TrendingUp className="w-4 h-4 mr-1 text-green-600" />
                               <span className="text-green-600">{data.totalBookingsTrend}% from last week</span>
                             </>
                           ) : (
                             <>
-                              <TrendingDown className="w-3 h-3 mr-1 text-red-600" />
+                              <TrendingDown className="w-4 h-4 mr-1 text-red-600" />
                               <span className="text-red-600">{Math.abs(data.totalBookingsTrend)}% from last week</span>
                             </>
                           )}
@@ -401,22 +414,22 @@ export default async function DashboardPage() {
                   </Card>
 
                   {/* Conversion Rate */}
-                  <Card>
+                  <Card className="border-l-4 border-l-amber-500 shadow-md hover:shadow-lg transition-shadow">
                     <CardHeader className="pb-2">
-                      <CardDescription>Conversion Rate</CardDescription>
-                      <CardTitle className="text-3xl font-bold">{data.conversionRate}%</CardTitle>
+                      <CardDescription className="text-xs font-semibold uppercase tracking-wider">Conversion Rate</CardDescription>
+                      <CardTitle className="text-4xl font-extrabold text-amber-600">{data.conversionRate}%</CardTitle>
                     </CardHeader>
                     <CardContent>
                       {data.conversionRateTrend !== 0 && (
-                        <div className="flex items-center text-xs">
+                        <div className="flex items-center text-xs font-medium">
                           {data.conversionRateTrend > 0 ? (
                             <>
-                              <TrendingUp className="w-3 h-3 mr-1 text-green-600" />
+                              <TrendingUp className="w-4 h-4 mr-1 text-green-600" />
                               <span className="text-green-600">{data.conversionRateTrend}% from yesterday</span>
                             </>
                           ) : (
                             <>
-                              <TrendingDown className="w-3 h-3 mr-1 text-red-600" />
+                              <TrendingDown className="w-4 h-4 mr-1 text-red-600" />
                               <span className="text-red-600">{Math.abs(data.conversionRateTrend)}% from yesterday</span>
                             </>
                           )}
