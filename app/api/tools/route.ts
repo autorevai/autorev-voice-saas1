@@ -121,6 +121,40 @@ export async function POST(req: NextRequest) {
 
     console.log('✅ Booking created:', confirmation, '/', sanitized.name);
 
+    // Log tool result with customer data for later processing in end-of-call-report
+    if (callId) {
+      try {
+        await db.from('tool_results').insert({
+          call_id: callId,
+          tool_name: 'create_booking',
+          request_json: sanitized,
+          response_json: {
+            success: true,
+            confirmation: confirmation,
+            booking_id: booking.id
+          },
+          success: true
+        });
+        log.info('Booking tool result logged', {
+          tool: 'create_booking',
+          callId,
+          confirmation,
+          customerName: sanitized.name
+        });
+      } catch (toolError: any) {
+        log.warn('Failed to log booking tool result', {
+          error: toolError.message,
+          tool: 'create_booking',
+          callId
+        });
+      }
+    } else {
+      log.warn('Skipping tool result logging - no call_id', {
+        tool: 'create_booking',
+        confirmation
+      });
+    }
+
     const duration = Date.now() - startTime;
 
     // Return success to VAPI

@@ -246,9 +246,12 @@ export default async function CallDetailsPage({ params }: { params: Promise<{ id
             <div>
               <h1 className="text-3xl font-bold text-gray-900">{customerName}</h1>
               <p className="text-sm text-gray-500 mt-1">{formatDateTime(call.started_at)}</p>
+              <p className="text-xs text-gray-400 mt-1 font-mono">
+                Call ID: {call.vapi_call_id}
+              </p>
             </div>
-            <div className={`px-4 py-2 rounded-lg border-2 font-semibold ${getOutcomeColor(call.outcome)}`}>
-              {call.outcome || 'Unknown'}
+            <div className={`px-4 py-2 rounded-lg border-2 font-semibold ${getOutcomeColor(booking ? 'booked' : call.outcome)}`}>
+              {booking ? 'Booked' : (call.outcome || 'Unknown')}
             </div>
           </div>
         </div>
@@ -297,8 +300,8 @@ export default async function CallDetailsPage({ params }: { params: Promise<{ id
 
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <div className="flex items-center space-x-3">
-              <div className={`p-2 rounded-lg ${call.outcome === 'booked' ? 'bg-green-100' : 'bg-gray-100'}`}>
-                {call.outcome === 'booked' ? (
+              <div className={`p-2 rounded-lg ${booking ? 'bg-green-100' : 'bg-gray-100'}`}>
+                {booking ? (
                   <CheckCircle className="w-5 h-5 text-green-600" />
                 ) : (
                   <XCircle className="w-5 h-5 text-gray-600" />
@@ -307,7 +310,7 @@ export default async function CallDetailsPage({ params }: { params: Promise<{ id
               <div>
                 <p className="text-sm text-gray-500">Status</p>
                 <p className="text-lg font-semibold text-gray-900">
-                  {call.outcome === 'booked' ? 'Booked' : 'Not Booked'}
+                  {booking ? 'Booked' : 'Not Booked'}
                 </p>
               </div>
             </div>

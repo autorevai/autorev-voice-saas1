@@ -196,198 +196,6 @@ function extractCallData(event: any): {
 }
 
 // ========================================
-// HELPER FUNCTIONS
-// ========================================
-
-// Extract customer data from conversation transcript and update calls table
-async function extractAndUpdateCustomerData(
-  callId: string, 
-  transcript: string, 
-  supabase: any, 
-  log: any
-) {
-  try {
-    // Get current call data
-    const { data: existingCall } = await supabase
-      .from('calls')
-      .select('id, customer_name, customer_phone, customer_address, customer_city, customer_state, customer_zip')
-      .eq('vapi_call_id', callId)
-      .single();
-
-    if (!existingCall) {
-      log.warn('Call not found for customer data extraction', { callId });
-      return;
-    }
-
-    // Extract customer information from transcript using regex patterns
-    const updates: any = {};
-
-    // Extract name patterns: "My name is John", "I'm Sarah", "This is Mike", "Yes. This is Chris Jones"
-    // Try multiple patterns
-    const namePatterns = [
-      /(?:my name is|i'm|this is|i am|yes\.?\s+this is)\s+([A-Z][a-z]+\s+[A-Z][a-z]+)/i,
-      /Customer:\s*(?:Yes\.?\s+)?(?:This is|I'm|My name is)\s+([A-Z][a-z]+\s+[A-Z][a-z]+)/i,
-      /(?:^|\n)(?:Yes\.?\s+)?(?:This is|I'm|My name is)\s+([A-Z][a-z]+\s+[A-Z][a-z]+)/im
-    ];
-
-    for (const pattern of namePatterns) {
-      const nameMatch = transcript.match(pattern);
-      if (nameMatch) {
-        const name = nameMatch[1].trim();
-        // Validate it's a proper name (two words, capitalized)
-        if (name.length > 3 && name.length < 50 && name.includes(' ')) {
-          // Only update if:
-          // 1. No existing name, OR
-          // 2. New name is longer/more complete (e.g., "Chris Smith" vs "Chris uh")
-          const shouldUpdate = !existingCall.customer_name ||
-                              (name.length > existingCall.customer_name.length &&
-                               !name.toLowerCase().includes(' uh'));
-
-          if (shouldUpdate) {
-            updates.customer_name = name;
-            log.info('Customer name extracted from conversation', {
-              name,
-              previous: existingCall.customer_name,
-              isUpdate: !!existingCall.customer_name
-            });
-          }
-          break;
-        }
-      }
-    }
-
-    // Extract phone patterns: "My number is 555-1234", "Call me at 740-739-3487"
-    if (!existingCall.customer_phone) {
-      const phoneMatch = transcript.match(/(?:my number is|call me at|my phone is|number is)\s*([0-9\-\(\)\s\+]+)/i);
-      if (phoneMatch) {
-        let phone = phoneMatch[1].replace(/[^\d]/g, '');
-        if (phone.length === 10) {
-          phone = '+1' + phone;
-        } else if (phone.length === 11 && phone.startsWith('1')) {
-          phone = '+' + phone;
-        }
-        if (phone.length >= 10) {
-          updates.customer_phone = phone;
-          console.log('✅ DB CALL: Customer phone extracted from conversation:', phone);
-        }
-      }
-    }
-
-    // Extract address patterns: "My address is 123 Main St", "I live at 456 Oak Ave", "123 Palmer Road"
-    if (!existingCall.customer_address) {
-      const addressPatterns = [
-        /(?:my address is|i live at|address is|located at|it's)\s+(\d+\s+[A-Za-z\s]+(?:Street|St|Road|Rd|Avenue|Ave|Boulevard|Blvd|Lane|Ln|Drive|Dr|Court|Ct|Place|Pl|Way))/i,
-        /(?:at|on)\s+(\d+\s+[A-Za-z\s]+(?:Street|St|Road|Rd|Avenue|Ave|Boulevard|Blvd|Lane|Ln|Drive|Dr|Court|Ct|Place|Pl|Way))/i,
-        /(\d+\s+[A-Za-z]+\s+(?:Street|St|Road|Rd|Avenue|Ave|Boulevard|Blvd|Lane|Ln|Drive|Dr|Court|Ct|Place|Pl|Way))/i
-      ];
-
-      for (const pattern of addressPatterns) {
-        const addressMatch = transcript.match(pattern);
-        if (addressMatch) {
-          const address = addressMatch[1].trim();
-          if (address.length > 5 && address.length < 200) {
-            updates.customer_address = address;
-            console.log('✅ DB CALL: Customer address extracted from conversation:', address);
-            break;
-          }
-        }
-      }
-    }
-
-    // Extract city patterns: "I'm in Columbus", "City is Dublin", "Columbus, Ohio"
-    if (!existingCall.customer_city) {
-      const cityPatterns = [
-        /(?:i'm in|city is|located in|i live in|in)\s+([A-Z][a-z]+(?:\s[A-Z][a-z]+)?),?\s+(?:Ohio|OH)/i,
-        /,\s*([A-Z][a-z]+(?:\s[A-Z][a-z]+)?),?\s+(?:Ohio|OH)/i,
-        /(?:i'm in|city is|located in|i live in)\s+([A-Z][a-z]+(?:\s[A-Z][a-z]+)?)/i
-      ];
-
-      for (const pattern of cityPatterns) {
-        const cityMatch = transcript.match(pattern);
-        if (cityMatch) {
-          const city = cityMatch[1].trim();
-          if (city.length > 1 && city.length < 50 && !city.match(/^(yes|no|the|and|or)$/i)) {
-            updates.customer_city = city;
-            console.log('✅ DB CALL: Customer city extracted from conversation:', city);
-            break;
-          }
-        }
-      }
-    }
-
-    // Extract state patterns: "Ohio", "In Ohio", "State is Ohio"
-    if (!existingCall.customer_state) {
-      const stateMatch = transcript.match(/(?:in\s+|state is\s+|i'm in\s+)?(ohio|california|texas|florida|new york|illinois|pennsylvania|georgia|north carolina|michigan|new jersey|virginia|washington|arizona|massachusetts|tennessee|indiana|missouri|maryland|wisconsin|colorado|minnesota|south carolina|alabama|louisiana|kentucky|oregon|oklahoma|connecticut|utah|iowa|nevada|arkansas|mississippi|kansas|new mexico|nebraska|west virginia|idaho|hawaii|new hampshire|maine|montana|rhode island|delaware|south dakota|north dakota|alaska|vermont|wyoming)/i);
-      if (stateMatch) {
-        const state = stateMatch[1];
-        updates.customer_state = state;
-        console.log('✅ DB CALL: Customer state extracted from conversation:', state);
-      }
-    }
-
-    // Extract zip patterns: "43068", "Zip is 43068", "My zip is 43068", "Ohio 43068"
-    if (!existingCall.customer_zip) {
-      const zipPatterns = [
-        /(?:zip code is|zip is|my zip is|postal code is)\s*(\d{5}(?:-\d{4})?)/i,
-        /(?:Ohio|OH)\s+(\d{5}(?:-\d{4})?)/i,
-        /\b(\d{5}(?:-\d{4})?)\b/
-      ];
-
-      for (const pattern of zipPatterns) {
-        const zipMatch = transcript.match(pattern);
-        if (zipMatch) {
-          const zip = zipMatch[1];
-          updates.customer_zip = zip;
-          console.log('✅ DB CALL: Customer zip extracted from conversation:', zip);
-          break;
-        }
-      }
-    }
-
-    // Apply updates if any
-    if (Object.keys(updates).length > 0) {
-      await supabase
-        .from('calls')
-        .update(updates)
-        .eq('vapi_call_id', callId);
-
-      log.info('Customer data updated from conversation', {
-        callId,
-        updates,
-        fieldsUpdated: Object.keys(updates)
-      });
-
-      // Also update linked bookings with the corrected customer name
-      if (updates.customer_name) {
-        const { data: linkedBooking } = await supabase
-          .from('bookings')
-          .select('id')
-          .eq('call_id', existingCall.id)
-          .single();
-
-        if (linkedBooking) {
-          await supabase
-            .from('bookings')
-            .update({ customer_name: updates.customer_name })
-            .eq('id', linkedBooking.id);
-
-          log.info('Updated booking with corrected customer name', {
-            bookingId: linkedBooking.id,
-            name: updates.customer_name
-          });
-        }
-      }
-    }
-
-  } catch (error: any) {
-    log.error('Failed to extract customer data from conversation', {
-      error: error.message,
-      callId
-    });
-  }
-}
-
-// ========================================
 // MAIN HANDLER
 // ========================================
 export async function POST(req: NextRequest) {
@@ -677,26 +485,79 @@ export async function POST(req: NextRequest) {
             tenantId
           });
 
-          // Link any bookings that have this vapi_call_id in notes
-          await supabase
-            .from('bookings')
-            .update({ call_id: newCall.id })
-            .eq('tenant_id', tenantId)
-            .like('notes', `%VAPI_CALL_ID:${callData.callId}%`)
-            .is('call_id', null);
-
-          // Update outcome to 'booked' if booking exists
-          const { data: linkedBookings } = await supabase
-            .from('bookings')
-            .select('id')
+          // ========================================
+          // EXTRACT CUSTOMER DATA FROM TOOL RESULTS
+          // ========================================
+          // Check if create_booking tool was called during this call
+          const { data: bookingToolResult } = await supabase
+            .from('tool_results')
+            .select('request_json, response_json')
             .eq('call_id', newCall.id)
-            .limit(1);
+            .eq('tool_name', 'create_booking')
+            .eq('success', true)
+            .single();
 
-          if (linkedBookings && linkedBookings.length > 0) {
+          if (bookingToolResult) {
+            // Extract clean customer data from tool request
+            const customerData = bookingToolResult.request_json;
+            const bookingId = bookingToolResult.response_json?.booking_id;
+
+            // Update calls table with clean customer data
+            const callUpdates: any = {
+              customer_name: customerData.name,
+              customer_phone: customerData.phone,
+              customer_address: customerData.address,
+              customer_city: customerData.city,
+              customer_state: customerData.state,
+              customer_zip: customerData.zip,
+              outcome: 'booked'
+            };
+
             await supabase
               .from('calls')
-              .update({ outcome: 'booked' })
+              .update(callUpdates)
               .eq('id', newCall.id);
+
+            log.info('Updated new call with customer data from tool_results', {
+              callId: newCall.id,
+              customerName: customerData.name,
+              hasBooking: !!bookingId
+            });
+
+            // Link booking to call if we have booking_id
+            if (bookingId) {
+              await supabase
+                .from('bookings')
+                .update({ call_id: newCall.id })
+                .eq('id', bookingId);
+
+              log.info('Linked booking to new call', {
+                bookingId,
+                callId: newCall.id
+              });
+            }
+          } else {
+            // No booking tool result - try to link bookings by notes (legacy method)
+            await supabase
+              .from('bookings')
+              .update({ call_id: newCall.id })
+              .eq('tenant_id', tenantId)
+              .like('notes', `%VAPI_CALL_ID:${callData.callId}%`)
+              .is('call_id', null);
+
+            // Update outcome to 'booked' if booking exists
+            const { data: linkedBookings } = await supabase
+              .from('bookings')
+              .select('id')
+              .eq('call_id', newCall.id)
+              .limit(1);
+
+            if (linkedBookings && linkedBookings.length > 0) {
+              await supabase
+                .from('calls')
+                .update({ outcome: 'booked' })
+                .eq('id', newCall.id);
+            }
           }
         }
 
@@ -744,26 +605,79 @@ export async function POST(req: NextRequest) {
           duration: callData.duration
         });
 
-        // Link any bookings that have this vapi_call_id in notes
-        await supabase
-          .from('bookings')
-          .update({ call_id: updatedCall.id })
-          .eq('tenant_id', tenantId)
-          .like('notes', `%VAPI_CALL_ID:${callData.callId}%`)
-          .is('call_id', null);
-
-        // Update outcome to 'booked' if booking exists
-        const { data: linkedBookings } = await supabase
-          .from('bookings')
-          .select('id')
+        // ========================================
+        // EXTRACT CUSTOMER DATA FROM TOOL RESULTS
+        // ========================================
+        // Check if create_booking tool was called during this call
+        const { data: bookingToolResult } = await supabase
+          .from('tool_results')
+          .select('request_json, response_json')
           .eq('call_id', updatedCall.id)
-          .limit(1);
+          .eq('tool_name', 'create_booking')
+          .eq('success', true)
+          .single();
 
-        if (linkedBookings && linkedBookings.length > 0) {
+        if (bookingToolResult) {
+          // Extract clean customer data from tool request
+          const customerData = bookingToolResult.request_json;
+          const bookingId = bookingToolResult.response_json?.booking_id;
+
+          // Update calls table with clean customer data
+          const callUpdates: any = {
+            customer_name: customerData.name,
+            customer_phone: customerData.phone,
+            customer_address: customerData.address,
+            customer_city: customerData.city,
+            customer_state: customerData.state,
+            customer_zip: customerData.zip,
+            outcome: 'booked'
+          };
+
           await supabase
             .from('calls')
-            .update({ outcome: 'booked' })
+            .update(callUpdates)
             .eq('id', updatedCall.id);
+
+          log.info('Updated call with customer data from tool_results', {
+            callId: updatedCall.id,
+            customerName: customerData.name,
+            hasBooking: !!bookingId
+          });
+
+          // Link booking to call if we have booking_id
+          if (bookingId) {
+            await supabase
+              .from('bookings')
+              .update({ call_id: updatedCall.id })
+              .eq('id', bookingId);
+
+            log.info('Linked booking to call', {
+              bookingId,
+              callId: updatedCall.id
+            });
+          }
+        } else {
+          // No booking tool result - try to link bookings by notes (legacy method)
+          await supabase
+            .from('bookings')
+            .update({ call_id: updatedCall.id })
+            .eq('tenant_id', tenantId)
+            .like('notes', `%VAPI_CALL_ID:${callData.callId}%`)
+            .is('call_id', null);
+
+          // Update outcome to 'booked' if booking exists
+          const { data: linkedBookings } = await supabase
+            .from('bookings')
+            .select('id')
+            .eq('call_id', updatedCall.id)
+            .limit(1);
+
+          if (linkedBookings && linkedBookings.length > 0) {
+            await supabase
+              .from('calls')
+              .update({ outcome: 'booked' })
+              .eq('id', updatedCall.id);
+          }
         }
       }
 
@@ -897,119 +811,14 @@ export async function POST(req: NextRequest) {
     }
 
     // ========================================
-    // HANDLE: tool-calls (extract customer data progressively)
+    // HANDLE: tool-calls (informational only - data extracted in end-of-call-report)
     // ========================================
     if (messageType === 'tool-calls') {
       const toolNames = message?.toolCalls?.map((t: any) => t.function?.name) || [];
-
-      console.log('🔧 TOOL CALLS:', toolNames.join(', '));
-
-      // Find the call record
-      const { data: existingCall } = await supabase
-        .from('calls')
-        .select('id, customer_name, customer_phone, customer_address, customer_city, customer_state, customer_zip')
-        .eq('vapi_call_id', callData.callId)
-        .single();
-
-      if (existingCall && message?.toolCalls) {
-        for (const toolCall of message.toolCalls) {
-          const toolName = toolCall.function?.name;
-
-          // Extract customer data from create_booking tool
-          if (toolName === 'create_booking') {
-            let params: any = {};
-
-            // Parse arguments (can be string or object)
-            if (typeof toolCall.function?.arguments === 'string') {
-              try {
-                params = JSON.parse(toolCall.function.arguments);
-              } catch {
-                params = toolCall.function?.parameters || {};
-              }
-            } else {
-              params = toolCall.function?.arguments || toolCall.function?.parameters || {};
-            }
-
-            // Extract customer info
-            const customerName = params.name || params.customer_name;
-            const customerPhone = params.phone || params.customer_phone || params.phone_number;
-            const customerAddress = params.address || params.customer_address;
-            const customerCity = params.city || params.customer_city;
-            const customerState = params.state || params.customer_state;
-            const customerZip = params.zip || params.customer_zip || params.zip_code;
-
-            // Update call record with tool data (always overwrite - tool data is most reliable)
-            const updates: any = {};
-
-            if (customerName) {
-              updates.customer_name = customerName;
-              log.info('Customer name from tool', {
-                name: customerName,
-                previous: existingCall.customer_name,
-                isUpdate: !!existingCall.customer_name
-              });
-            }
-
-            if (customerPhone) {
-              updates.customer_phone = customerPhone;
-              log.info('Customer phone from tool', {
-                phone: customerPhone,
-                previous: existingCall.customer_phone,
-                isUpdate: !!existingCall.customer_phone
-              });
-            }
-
-            if (customerAddress) {
-              updates.customer_address = customerAddress;
-              log.info('Customer address from tool', {
-                address: customerAddress,
-                previous: existingCall.customer_address,
-                isUpdate: !!existingCall.customer_address
-              });
-            }
-
-            if (customerCity) {
-              updates.customer_city = customerCity;
-              log.info('Customer city from tool', {
-                city: customerCity,
-                previous: existingCall.customer_city,
-                isUpdate: !!existingCall.customer_city
-              });
-            }
-
-            if (customerState) {
-              updates.customer_state = customerState;
-              log.info('Customer state from tool', {
-                state: customerState,
-                previous: existingCall.customer_state,
-                isUpdate: !!existingCall.customer_state
-              });
-            }
-
-            if (customerZip) {
-              updates.customer_zip = customerZip;
-              log.info('Customer zip from tool', {
-                zip: customerZip,
-                previous: existingCall.customer_zip,
-                isUpdate: !!existingCall.customer_zip
-              });
-            }
-
-            // Apply updates if any
-            if (Object.keys(updates).length > 0) {
-              await supabase
-                .from('calls')
-                .update(updates)
-                .eq('id', existingCall.id);
-
-              log.info('Call updated with customer data from tool', {
-                callId: callData.callId,
-                updates: Object.keys(updates)
-              });
-            }
-          }
-        }
-      }
+      log.info('Tool calls received', {
+        callId: callData.callId,
+        tools: toolNames
+      });
 
       const duration = Date.now() - startTime;
       return NextResponse.json({
@@ -1063,58 +872,7 @@ export async function POST(req: NextRequest) {
     // HANDLE: Informational events (conversation-update, transcript, speech-update)
     // ========================================
     if (['conversation-update', 'transcript', 'speech-update', 'model-output', 'user-interrupted'].includes(messageType)) {
-      // Extract customer data from conversation updates
-      if (messageType === 'conversation-update') {
-        // Get current call to check last processed message count
-        const { data: currentCall } = await supabase
-          .from('calls')
-          .select('id, raw_json')
-          .eq('vapi_call_id', callData.callId)
-          .single();
-
-        if (currentCall) {
-          const conversation = message?.conversation || message?.messages || [];
-          const lastProcessedCount = currentCall.raw_json?.last_processed_message_count || 0;
-          const currentMessageCount = conversation.length;
-
-          // Only process if there are new messages
-          if (currentMessageCount > lastProcessedCount) {
-            // Get only the NEW messages
-            const newMessages = conversation.slice(lastProcessedCount);
-
-            const newConversationText = newMessages
-              .filter((msg: any) => msg.role === 'user' || msg.role === 'assistant')
-              .map((msg: any) => {
-                const role = msg.role === 'user' ? 'Customer' : 'Assistant';
-                const content = msg.content || msg.message || '';
-                return `${role}: ${content}`;
-              })
-              .join('\n');
-
-            if (newConversationText && newConversationText.trim()) {
-              log.info('Processing new conversation messages', {
-                callId: callData.callId,
-                newMessageCount: newMessages.length,
-                totalMessages: currentMessageCount
-              });
-
-              await extractAndUpdateCustomerData(callData.callId, newConversationText, supabase, log);
-
-              // Update the last processed message count
-              await supabase
-                .from('calls')
-                .update({
-                  raw_json: {
-                    ...currentCall.raw_json,
-                    last_processed_message_count: currentMessageCount
-                  }
-                })
-                .eq('id', currentCall.id);
-            }
-          }
-        }
-      }
-
+      // Just acknowledge - data will be extracted from tool_results in end-of-call-report
       const duration = Date.now() - startTime;
       return NextResponse.json({
         received: true,
