@@ -133,8 +133,20 @@ export async function POST(req: NextRequest) {
       }
     });
 
+    // First, get the internal call ID from the vapi_call_id
+    let internalCallId = null;
+    if (callId) {
+      const { data: callRecord } = await db
+        .from('calls')
+        .select('id')
+        .eq('vapi_call_id', callId)
+        .single();
+      internalCallId = callRecord?.id || null;
+    }
+
     const { data: booking, error } = await db.from('bookings').insert({
       tenant_id: tenantId,
+      call_id: internalCallId,
       confirmation: confirmation,
       window_text: sanitized.preferred_time || 'Next available',
       start_ts: bookingStartTime,
@@ -178,6 +190,21 @@ export async function POST(req: NextRequest) {
       confirmation: booking.confirmation,
       callId
     });
+
+    // Update call outcome to 'booked' (only if we have internal call ID)
+    if (internalCallId) {
+      try {
+        await db.from('calls')
+          .update({ outcome: 'booked' })
+          .eq('id', internalCallId);
+        log.info('Updated call outcome to booked', { callId: internalCallId });
+      } catch (outcomeError: any) {
+        log.warn('Failed to update call outcome', {
+          error: outcomeError.message,
+          callId: internalCallId
+        });
+      }
+    }
 
     // Log tool result (only if we have a valid call_id)
     if (callId) {
