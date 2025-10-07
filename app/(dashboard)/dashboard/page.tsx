@@ -240,16 +240,26 @@ async function getDashboardData(): Promise<DashboardData> {
       total: conversionFunnel?.length || 0,
       booked: conversionFunnel?.filter((call: any) => call.outcome === 'booked').length || 0,
       handoff: conversionFunnel?.filter((call: any) => call.outcome === 'handoff').length || 0,
-      unknown: conversionFunnel?.filter((call: any) => call.outcome === 'unknown').length || 0
+      unknown: conversionFunnel?.filter((call: any) => call.outcome === 'unknown').length || 0,
+      completed: conversionFunnel?.filter((call: any) => call.outcome === 'completed').length || 0,
+      failed: conversionFunnel?.filter((call: any) => call.outcome === 'failed').length || 0,
+      abandoned: conversionFunnel?.filter((call: any) => call.outcome === 'abandoned').length || 0
     }
+
+    // Debug: Log all unique outcomes to see what we actually have
+    const uniqueOutcomes = [...new Set(conversionFunnel?.map((call: any) => call.outcome) || [])];
+    console.log('📊 Unique outcomes in database:', uniqueOutcomes);
 
     // Convert funnel data to array format for charts
     const conversionFunnelArray = [
       { name: 'Total Calls', value: funnelData.total, percentage: 100 },
       { name: 'Booked', value: funnelData.booked, percentage: funnelData.total > 0 ? Math.round((funnelData.booked / funnelData.total) * 100) : 0 },
       { name: 'Handoff', value: funnelData.handoff, percentage: funnelData.total > 0 ? Math.round((funnelData.handoff / funnelData.total) * 100) : 0 },
+      { name: 'Completed', value: funnelData.completed, percentage: funnelData.total > 0 ? Math.round((funnelData.completed / funnelData.total) * 100) : 0 },
+      { name: 'Failed', value: funnelData.failed, percentage: funnelData.total > 0 ? Math.round((funnelData.failed / funnelData.total) * 100) : 0 },
+      { name: 'Abandoned', value: funnelData.abandoned, percentage: funnelData.total > 0 ? Math.round((funnelData.abandoned / funnelData.total) * 100) : 0 },
       { name: 'Unknown', value: funnelData.unknown, percentage: funnelData.total > 0 ? Math.round((funnelData.unknown / funnelData.total) * 100) : 0 }
-    ]
+    ].filter(item => item.value > 0) // Only show outcomes that have data
 
     // Debug logging for funnel
     console.log('📊 Funnel Data Debug:', {
