@@ -148,6 +148,25 @@ function getCustomerName(call: Call): string {
          'Unknown'
 }
 
+function formatPhoneNumber(phone: string | null): string {
+  if (!phone) return 'N/A'
+
+  // Remove any non-digit characters
+  const digits = phone.replace(/\D/g, '')
+
+  // Handle US phone numbers (10 or 11 digits)
+  if (digits.length === 11 && digits.startsWith('1')) {
+    // Remove leading 1
+    const usNumber = digits.substring(1)
+    return `${usNumber.substring(0, 3)}-${usNumber.substring(3, 6)}-${usNumber.substring(6)}`
+  } else if (digits.length === 10) {
+    return `${digits.substring(0, 3)}-${digits.substring(3, 6)}-${digits.substring(6)}`
+  }
+
+  // Return original if not standard format
+  return phone
+}
+
 function formatAddress(call: Call): string | null {
   if (!call.customer_address) return null
 
@@ -159,6 +178,19 @@ function formatAddress(call: Call): string | null {
   }
 
   return parts.join(', ')
+}
+
+function parseFullName(name: string | null): { firstName: string; lastName: string } {
+  if (!name) return { firstName: '', lastName: '' }
+
+  const parts = name.trim().split(/\s+/)
+  if (parts.length === 1) {
+    return { firstName: parts[0], lastName: '' }
+  }
+
+  const firstName = parts[0]
+  const lastName = parts.slice(1).join(' ')
+  return { firstName, lastName }
 }
 
 function decodeTranscript(transcriptUrl: string | null): string {
@@ -186,9 +218,12 @@ export default async function CallDetailsPage({ params }: { params: Promise<{ id
 
   const { call, toolResults, booking } = callDetails
   const customerName = getCustomerName(call)
-  const customerPhone = call.customer_phone || call.raw_json?.customer?.phone || 'N/A'
+  const { firstName, lastName } = parseFullName(call.customer_name)
+  const customerPhone = formatPhoneNumber(call.customer_phone || call.raw_json?.customer?.phone)
+  const callerPhone = formatPhoneNumber(call.raw_json?.customer?.phone) // The actual number they called from
   const customerAddress = formatAddress(call)
   const summary = call.raw_json?.summary || 'No summary available'
+  const serviceType = booking?.summary || call.raw_json?.service_type || 'Not specified'
   const transcript = decodeTranscript(call.transcript_url)
 
   return (
@@ -324,6 +359,69 @@ export default async function CallDetailsPage({ params }: { params: Promise<{ id
             </div>
           </div>
         )}
+
+        {/* CRM Information */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
+          <h2 className="text-xl font-bold text-gray-900 mb-6">Customer Information</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {/* Name */}
+            {firstName && (
+              <div>
+                <p className="text-sm font-medium text-gray-500 mb-1">First Name</p>
+                <p className="text-base text-gray-900">{firstName}</p>
+              </div>
+            )}
+            {lastName && (
+              <div>
+                <p className="text-sm font-medium text-gray-500 mb-1">Last Name</p>
+                <p className="text-base text-gray-900">{lastName}</p>
+              </div>
+            )}
+
+            {/* Contact */}
+            <div>
+              <p className="text-sm font-medium text-gray-500 mb-1">Phone Number</p>
+              <p className="text-base text-gray-900">{customerPhone}</p>
+              {callerPhone !== customerPhone && (
+                <p className="text-xs text-gray-500 mt-1">Called from: {callerPhone}</p>
+              )}
+            </div>
+
+            {/* Service Request */}
+            <div>
+              <p className="text-sm font-medium text-gray-500 mb-1">Service Type</p>
+              <p className="text-base text-gray-900">{serviceType}</p>
+            </div>
+
+            {/* Address fields */}
+            {call.customer_address && (
+              <>
+                <div className="md:col-span-2 lg:col-span-3">
+                  <p className="text-sm font-medium text-gray-500 mb-1">Street Address</p>
+                  <p className="text-base text-gray-900">{call.customer_address}</p>
+                </div>
+                {call.customer_city && (
+                  <div>
+                    <p className="text-sm font-medium text-gray-500 mb-1">City</p>
+                    <p className="text-base text-gray-900">{call.customer_city}</p>
+                  </div>
+                )}
+                {call.customer_state && (
+                  <div>
+                    <p className="text-sm font-medium text-gray-500 mb-1">State</p>
+                    <p className="text-base text-gray-900">{call.customer_state}</p>
+                  </div>
+                )}
+                {call.customer_zip && (
+                  <div>
+                    <p className="text-sm font-medium text-gray-500 mb-1">ZIP Code</p>
+                    <p className="text-base text-gray-900">{call.customer_zip}</p>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
 
         {/* Main Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
