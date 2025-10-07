@@ -271,57 +271,131 @@ export default async function DashboardPage() {
       <div className="max-w-7xl mx-auto">
         <h1 className="text-2xl font-bold text-gray-900 mb-6">Dashboard</h1>
         
-        {/* Setup Success Banner */}
-        {data.assistant && data.assistant.vapi_number_id && (
-          <PhoneNumberCard phoneNumber={data.assistant.vapi_number_id} />
-        )}
-
-        {/* Setup Banner - Show when setup is not completed */}
-        {!data.setupCompleted ? (
+        {/* Voice AI Status Card */}
+        {data.assistant && data.assistant.vapi_number_id && data.assistant.vapi_assistant_id ? (
           <div className="mb-8">
-            <div className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg font-semibold text-blue-800 mb-2">
-                    Complete Your Setup
-                  </h3>
-                  <p className="text-blue-700 mb-4">
-                    Configure your AI voice receptionist to start taking calls.
-                  </p>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+              {/* Status Header */}
+              <div className="bg-gradient-to-r from-emerald-500 to-blue-600 px-6 py-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+                      <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-bold text-white">Voice AI Active</h2>
+                      <p className="text-white/90 text-sm">Your receptionist is taking calls</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
+                    <span className="text-white/90 text-sm font-medium">Live</span>
+                  </div>
                 </div>
-                <div>
-                  <a 
-                    href="/setup"
-                    className="bg-blue-600 text-white px-6 py-3 rounded-md hover:bg-blue-700 transition-colors inline-block"
-                  >
-                    Configure Voice Agent
-                  </a>
+              </div>
+
+              {/* Phone Number Section */}
+              <div className="px-6 py-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wide">Customer Phone Number</h3>
+                    <p className="text-3xl font-bold text-gray-900 font-mono mt-1">{data.assistant.vapi_number_id}</p>
+                  </div>
+                  <div className="flex space-x-3">
+                    <button
+                      onClick={() => navigator.clipboard.writeText(data.assistant.vapi_number_id)}
+                      className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                    >
+                      <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                      </svg>
+                      Copy
+                    </button>
+                    <a
+                      href={`tel:${data.assistant.vapi_number_id}`}
+                      className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                    >
+                      <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                      </svg>
+                      Test Call
+                    </a>
+                  </div>
+                </div>
+
+                {/* Quick Stats */}
+                <div className="grid grid-cols-3 gap-4 pt-4 border-t border-gray-100">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-gray-900">{data.callsToday}</div>
+                    <div className="text-sm text-gray-500">Calls Today</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-gray-900">{data.bookingsToday}</div>
+                    <div className="text-sm text-gray-500">Bookings Today</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-gray-900">{data.conversionRate}%</div>
+                    <div className="text-sm text-gray-500">Conversion Rate</div>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        ) : data.assistant && data.assistant.vapi_number_id && data.assistant.vapi_assistant_id ? (
-          // Success Display - Show when setup IS completed
-          <PhoneNumberDisplay 
-            phoneNumber={data.assistant.vapi_number_id}
-            assistantId={data.assistant.vapi_assistant_id}
-          />
-        ) : (
-          // Fallback - No assistant found
+        ) : !data.setupCompleted ? (
           <div className="mb-8">
-            <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-              <h3 className="text-lg font-semibold text-red-800 mb-2">
-                Setup Error
-              </h3>
-              <p className="text-red-700 mb-4">
-                Your setup is marked as completed but no assistant was found. Please contact support.
-              </p>
-              <a 
-                href="/setup"
-                className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 transition-colors inline-block"
-              >
-                Retry Setup
-              </a>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-4">
+                  <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                    <svg className="w-6 h-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">Configure Your Voice AI</h3>
+                    <p className="text-gray-600">Set up your AI receptionist to start taking calls</p>
+                  </div>
+                </div>
+                <a 
+                  href="/setup"
+                  className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors inline-flex items-center"
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  Setup Voice AI
+                </a>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="mb-8">
+            <div className="bg-red-50 border border-red-200 rounded-xl p-6">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                  <svg className="w-5 h-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-red-800">Configuration Error</h3>
+                  <p className="text-red-700">Your setup is marked as completed but no assistant was found. Please contact support or retry setup.</p>
+                </div>
+              </div>
+              <div className="mt-4">
+                <a 
+                  href="/setup"
+                  className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors inline-flex items-center"
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  Retry Setup
+                </a>
+              </div>
             </div>
           </div>
         )}

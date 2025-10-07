@@ -177,47 +177,19 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
   };
 
   return (
-    <div className="space-y-6">
-      {/* KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-medium text-gray-500">Calls Today</h3>
-            <TrendIndicator trend={data.callsTodayTrend} />
-          </div>
-          <p className="text-2xl font-bold text-gray-900">{data.callsToday}</p>
-        </div>
+    <div className="space-y-8">
+      {/* Analytics Overview */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
 
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-medium text-gray-500">Bookings Today</h3>
-            <TrendIndicator trend={data.bookingsTodayTrend} />
-          </div>
-          <p className="text-2xl font-bold text-green-600">{data.bookingsToday}</p>
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-medium text-gray-500">Conversion Rate</h3>
-            <TrendIndicator trend={data.conversionRateTrend} />
-          </div>
-          <p className="text-2xl font-bold text-blue-600">{data.conversionRate}%</p>
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-medium text-gray-500">Total Bookings</h3>
-            <TrendIndicator trend={data.totalBookingsTrend} />
-          </div>
-          <p className="text-2xl font-bold text-purple-600">{data.totalBookings}</p>
-        </div>
-      </div>
-
-      {/* Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Call Activity Chart */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Call Activity (Last 7 Days)</h3>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-lg font-semibold text-gray-900">Call Activity</h3>
+            <div className="flex items-center space-x-2 text-sm text-gray-500">
+              <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+              <span>Last 7 days</span>
+            </div>
+          </div>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={data.callsByDay}>
@@ -258,8 +230,14 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
         </div>
 
         {/* Conversion Funnel Chart */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Conversion Funnel</h3>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-lg font-semibold text-gray-900">Conversion Funnel</h3>
+            <div className="flex items-center space-x-2 text-sm text-gray-500">
+              <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
+              <span>All time</span>
+            </div>
+          </div>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart 
@@ -298,7 +276,7 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
                 />
                 <Bar 
                   dataKey="value" 
-                  fill="#3b82f6"
+                  fill="#8b5cf6"
                   radius={[0, 4, 4, 0]}
                 />
               </BarChart>
@@ -308,8 +286,14 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
       </div>
 
       {/* Peak Hours Chart */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-lg font-medium text-gray-900 mb-4">Peak Hours (Today)</h3>
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-lg font-semibold text-gray-900">Peak Hours</h3>
+          <div className="flex items-center space-x-2 text-sm text-gray-500">
+            <div className="w-3 h-3 bg-emerald-500 rounded-full"></div>
+            <span>Last 7 days</span>
+          </div>
+        </div>
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data.callsByHour} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
@@ -347,40 +331,43 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
       </div>
 
       {/* Recent Calls */}
-      <div className="bg-white shadow rounded-lg">
-        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-          <h2 className="text-lg font-medium text-gray-900">Recent Calls</h2>
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+        <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">Recent Calls</h2>
+            <p className="text-sm text-gray-500 mt-1">Latest customer interactions</p>
+          </div>
           <button
             onClick={refreshData}
             disabled={refreshing}
-            className="flex items-center space-x-2 px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors disabled:opacity-50"
+            className="flex items-center space-x-2 px-4 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-lg transition-colors disabled:opacity-50 border border-gray-200"
           >
             <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
             <span>{refreshing ? 'Refreshing...' : 'Refresh'}</span>
           </button>
         </div>
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+          <table className="min-w-full divide-y divide-gray-100">
+            <thead className="bg-gray-50/50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                   Started
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                   Customer
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                   Duration
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                   Outcome
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="bg-white divide-y divide-gray-100">
               {loading ? (
                 // Loading skeleton
                 Array.from({ length: 5 }).map((_, index) => (
@@ -415,28 +402,28 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
                 </tr>
               ) : (
                 data.recentCalls.map((call) => (
-                  <tr key={call.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                  <tr key={call.id} className="hover:bg-gray-50/50 transition-colors">
+                    <td className="px-6 py-4 whitespace-nowrap">
                       <div>
-                        <div className="font-medium">{formatRelativeTime(call.started_at)}</div>
+                        <div className="text-sm font-medium text-gray-900">{formatRelativeTime(call.started_at)}</div>
                         <div className="text-xs text-gray-500">{new Date(call.started_at).toLocaleString()}</div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {getCustomerName(call)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {formatDuration(call.duration_sec)}
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900">{getCustomerName(call)}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getOutcomeColor(call.outcome)}`}>
+                      <div className="text-sm text-gray-900">{formatDuration(call.duration_sec)}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex px-2.5 py-1 text-xs font-medium rounded-full ${getOutcomeColor(call.outcome)}`}>
                         {call.outcome || 'Unknown'}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    <td className="px-6 py-4 whitespace-nowrap">
                       <Link
                         href={`/dashboard/calls/${call.id}`}
-                        className="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-md hover:bg-blue-700 hover:shadow-md transform hover:scale-105 transition-all duration-200"
+                        className="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 hover:shadow-sm transition-all duration-200"
                       >
                         View Details
                       </Link>
