@@ -537,7 +537,62 @@ export async function POST(req: NextRequest) {
               });
             }
           } else {
-            // No booking tool result - try to link bookings by notes (legacy method)
+            // No booking tool result - fallback: extract from transcript/summary
+            const fullText = `${callData.transcript || ''}\n${callData.summary || ''}`;
+            const fallbackUpdates: any = {};
+
+            // Extract name
+            const nameMatch = fullText.match(/(?:my name is|i'm|this is|i am)\s+([A-Z][a-z]+\s+[A-Z][a-z]+)/i);
+            if (nameMatch) {
+              fallbackUpdates.customer_name = nameMatch[1].trim();
+            }
+
+            // Extract phone
+            const phoneMatch = fullText.match(/(?:my number is|call me at|phone is)\s*([0-9\-\(\)\s\+]+)/i);
+            if (phoneMatch) {
+              let phone = phoneMatch[1].replace(/[^\d]/g, '');
+              if (phone.length === 10) phone = '+1' + phone;
+              else if (phone.length === 11 && phone.startsWith('1')) phone = '+' + phone;
+              if (phone.length >= 10) fallbackUpdates.customer_phone = phone;
+            }
+
+            // Extract address
+            const addressMatch = fullText.match(/(\d+\s+[A-Za-z\s]+(?:Street|St|Road|Rd|Avenue|Ave|Boulevard|Blvd|Lane|Ln|Drive|Dr))/i);
+            if (addressMatch) {
+              fallbackUpdates.customer_address = addressMatch[1].trim();
+            }
+
+            // Extract city
+            const cityMatch = fullText.match(/(?:in|city|located in)\s+([A-Z][a-z]+(?:\s[A-Z][a-z]+)?),?\s+(?:Ohio|OH)/i);
+            if (cityMatch) {
+              fallbackUpdates.customer_city = cityMatch[1].trim();
+            }
+
+            // Extract state
+            const stateMatch = fullText.match(/(?:Ohio|OH|California|CA|Texas|TX|Florida|FL)/i);
+            if (stateMatch) {
+              fallbackUpdates.customer_state = stateMatch[0];
+            }
+
+            // Extract zip
+            const zipMatch = fullText.match(/\b(\d{5}(?:-\d{4})?)\b/);
+            if (zipMatch) {
+              fallbackUpdates.customer_zip = zipMatch[1];
+            }
+
+            if (Object.keys(fallbackUpdates).length > 0) {
+              await supabase
+                .from('calls')
+                .update(fallbackUpdates)
+                .eq('id', newCall.id);
+
+              log.info('Updated new call with fallback data from transcript/summary', {
+                callId: newCall.id,
+                extractedFields: Object.keys(fallbackUpdates)
+              });
+            }
+
+            // Try to link bookings by notes (legacy method)
             await supabase
               .from('bookings')
               .update({ call_id: newCall.id })
@@ -657,7 +712,62 @@ export async function POST(req: NextRequest) {
             });
           }
         } else {
-          // No booking tool result - try to link bookings by notes (legacy method)
+          // No booking tool result - fallback: extract from transcript/summary
+          const fullText = `${callData.transcript || ''}\n${callData.summary || ''}`;
+          const fallbackUpdates: any = {};
+
+          // Extract name
+          const nameMatch = fullText.match(/(?:my name is|i'm|this is|i am)\s+([A-Z][a-z]+\s+[A-Z][a-z]+)/i);
+          if (nameMatch) {
+            fallbackUpdates.customer_name = nameMatch[1].trim();
+          }
+
+          // Extract phone
+          const phoneMatch = fullText.match(/(?:my number is|call me at|phone is)\s*([0-9\-\(\)\s\+]+)/i);
+          if (phoneMatch) {
+            let phone = phoneMatch[1].replace(/[^\d]/g, '');
+            if (phone.length === 10) phone = '+1' + phone;
+            else if (phone.length === 11 && phone.startsWith('1')) phone = '+' + phone;
+            if (phone.length >= 10) fallbackUpdates.customer_phone = phone;
+          }
+
+          // Extract address
+          const addressMatch = fullText.match(/(\d+\s+[A-Za-z\s]+(?:Street|St|Road|Rd|Avenue|Ave|Boulevard|Blvd|Lane|Ln|Drive|Dr))/i);
+          if (addressMatch) {
+            fallbackUpdates.customer_address = addressMatch[1].trim();
+          }
+
+          // Extract city
+          const cityMatch = fullText.match(/(?:in|city|located in)\s+([A-Z][a-z]+(?:\s[A-Z][a-z]+)?),?\s+(?:Ohio|OH)/i);
+          if (cityMatch) {
+            fallbackUpdates.customer_city = cityMatch[1].trim();
+          }
+
+          // Extract state
+          const stateMatch = fullText.match(/(?:Ohio|OH|California|CA|Texas|TX|Florida|FL)/i);
+          if (stateMatch) {
+            fallbackUpdates.customer_state = stateMatch[0];
+          }
+
+          // Extract zip
+          const zipMatch = fullText.match(/\b(\d{5}(?:-\d{4})?)\b/);
+          if (zipMatch) {
+            fallbackUpdates.customer_zip = zipMatch[1];
+          }
+
+          if (Object.keys(fallbackUpdates).length > 0) {
+            await supabase
+              .from('calls')
+              .update(fallbackUpdates)
+              .eq('id', updatedCall.id);
+
+            log.info('Updated call with fallback data from transcript/summary', {
+              callId: updatedCall.id,
+              extractedFields: Object.keys(fallbackUpdates)
+            });
+          }
+
+          // Try to link bookings by notes (legacy method)
           await supabase
             .from('bookings')
             .update({ call_id: updatedCall.id })
