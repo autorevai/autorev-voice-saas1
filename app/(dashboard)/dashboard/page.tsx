@@ -208,6 +208,33 @@ async function getDashboardData(): Promise<DashboardData> {
       callsByDayMap.set(date, (callsByDayMap.get(date) || 0) + 1)
     })
 
+    // Convert calls by day map to array format for charts
+    let callsByDayArray = Array.from(callsByDayMap.entries()).map(([date, calls]) => ({
+      date: new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      calls
+    }))
+
+    // Debug logging
+    console.log('📊 Dashboard Data Debug:', {
+      callsByDayRaw: callsByDay?.length || 0,
+      callsByDayMap: callsByDayMap.size,
+      callsByDayArray: callsByDayArray.length,
+      sampleData: callsByDayArray.slice(0, 3)
+    })
+
+    // If no data, show empty chart with last 7 days
+    if (callsByDayArray.length === 0) {
+      const today = new Date()
+      callsByDayArray = Array.from({ length: 7 }, (_, i) => {
+        const date = new Date(today)
+        date.setDate(date.getDate() - i)
+        return {
+          date: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+          calls: 0
+        }
+      }).reverse()
+    }
+
     // Process conversion funnel data
     const funnelData = {
       total: conversionFunnel?.length || 0,
@@ -216,12 +243,50 @@ async function getDashboardData(): Promise<DashboardData> {
       unknown: conversionFunnel?.filter((call: any) => call.outcome === 'unknown').length || 0
     }
 
+    // Convert funnel data to array format for charts
+    const conversionFunnelArray = [
+      { name: 'Total Calls', value: funnelData.total, percentage: 100 },
+      { name: 'Booked', value: funnelData.booked, percentage: funnelData.total > 0 ? Math.round((funnelData.booked / funnelData.total) * 100) : 0 },
+      { name: 'Handoff', value: funnelData.handoff, percentage: funnelData.total > 0 ? Math.round((funnelData.handoff / funnelData.total) * 100) : 0 },
+      { name: 'Unknown', value: funnelData.unknown, percentage: funnelData.total > 0 ? Math.round((funnelData.unknown / funnelData.total) * 100) : 0 }
+    ]
+
+    // Debug logging for funnel
+    console.log('📊 Funnel Data Debug:', {
+      funnelData,
+      conversionFunnelArray
+    })
+
     // Process calls by hour data
     const callsByHourMap = new Map()
     callsByHour?.forEach((call: any) => {
       const hour = new Date(call.started_at).getHours()
       callsByHourMap.set(hour, (callsByHourMap.get(hour) || 0) + 1)
     })
+
+    // Convert calls by hour map to array format for charts
+    let callsByHourArray = Array.from(callsByHourMap.entries())
+      .map(([hour, calls]) => ({
+        hour: `${hour}:00`,
+        calls
+      }))
+      .sort((a, b) => parseInt(a.hour) - parseInt(b.hour))
+
+    // Debug logging for calls by hour
+    console.log('📊 Hour Data Debug:', {
+      callsByHourRaw: callsByHour?.length || 0,
+      callsByHourMap: callsByHourMap.size,
+      callsByHourArray: callsByHourArray.length,
+      sampleData: callsByHourArray.slice(0, 3)
+    })
+
+    // If no data, show empty chart with common business hours
+    if (callsByHourArray.length === 0) {
+      callsByHourArray = Array.from({ length: 12 }, (_, i) => ({
+        hour: `${8 + i}:00`,
+        calls: 0
+      }))
+    }
 
     // Calculate trends (simplified for now)
     const callsTodayTrend = 0 // Simplified for now
@@ -235,9 +300,9 @@ async function getDashboardData(): Promise<DashboardData> {
       totalBookings: totalBookings || 0,
       conversionRate,
       recentCalls: recentCalls || [],
-      callsByDay: callsByDay || [],
-      conversionFunnel: conversionFunnel || [],
-      callsByHour: callsByHour || [],
+      callsByDay: callsByDayArray,
+      conversionFunnel: conversionFunnelArray,
+      callsByHour: callsByHourArray,
       callsTodayTrend,
       bookingsTodayTrend,
       conversionRateTrend,
