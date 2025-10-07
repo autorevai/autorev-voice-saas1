@@ -2,6 +2,7 @@ import { createClient } from '../../../lib/supabase/server'
 import DashboardClient from './components/DashboardClient'
 import PhoneNumberDisplay from './components/PhoneNumberDisplay'
 import PhoneNumberCard from './components/PhoneNumberCard'
+import CopyButton from './components/CopyButton'
 
 interface Call {
   id: string
@@ -304,15 +305,9 @@ export default async function DashboardPage() {
                     <p className="text-3xl font-bold text-gray-900 font-mono mt-1">{data.assistant.vapi_number_id}</p>
                   </div>
                   <div className="flex space-x-3">
-                    <button
-                      onClick={() => data.assistant?.vapi_number_id && navigator.clipboard.writeText(data.assistant.vapi_number_id)}
-                      className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
-                    >
-                      <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                      </svg>
-                      Copy
-                    </button>
+                    {data.assistant?.vapi_number_id && (
+                      <CopyButton text={data.assistant.vapi_number_id} />
+                    )}
                     <a
                       href={`tel:${data.assistant?.vapi_number_id || ''}`}
                       className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
