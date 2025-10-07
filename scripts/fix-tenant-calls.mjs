@@ -54,9 +54,18 @@ async function fixTenantCalls() {
         .update({ call_id: calls[0].id })
         .eq('id', booking.id);
 
+      // Update call with booking data
       await supabase
         .from('calls')
-        .update({ outcome: 'booked' })
+        .update({
+          outcome: 'booked',
+          customer_name: booking.name,
+          customer_phone: booking.phone,
+          customer_address: booking.address,
+          customer_city: booking.city,
+          customer_state: booking.state,
+          customer_zip: booking.zip
+        })
         .eq('id', calls[0].id);
 
       console.log(`✅ Linked: ${booking.name} → ${calls[0].vapi_call_id?.substring(0, 12)}`);
@@ -88,6 +97,31 @@ async function fixTenantCalls() {
 
       console.log(`✅ Updated from tool_results: ${tool.call_id?.substring(0, 12)}`);
     }
+  }
+
+  // 3. Update all calls with data from their linked bookings
+  console.log('\n📋 Step 3: Syncing call data from bookings...\n');
+
+  const { data: linkedBookings } = await supabase
+    .from('bookings')
+    .select('*')
+    .eq('tenant_id', TENANT_ID)
+    .not('call_id', 'is', null);
+
+  for (const booking of linkedBookings || []) {
+    await supabase
+      .from('calls')
+      .update({
+        customer_name: booking.name,
+        customer_phone: booking.phone,
+        customer_address: booking.address,
+        customer_city: booking.city,
+        customer_state: booking.state,
+        customer_zip: booking.zip
+      })
+      .eq('id', booking.call_id);
+
+    console.log(`✅ Synced: ${booking.name} (state: ${booking.state})`);
   }
 
   console.log('\n✅ Done!');
