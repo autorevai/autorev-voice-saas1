@@ -504,6 +504,28 @@ export async function POST(req: NextRequest) {
             vapiCallId: callData.callId,
             tenantId
           });
+
+          // Link any bookings that have this vapi_call_id in notes
+          await supabase
+            .from('bookings')
+            .update({ call_id: newCall.id })
+            .eq('tenant_id', tenantId)
+            .like('notes', `%VAPI_CALL_ID:${callData.callId}%`)
+            .is('call_id', null);
+
+          // Update outcome to 'booked' if booking exists
+          const { data: linkedBookings } = await supabase
+            .from('bookings')
+            .select('id')
+            .eq('call_id', newCall.id)
+            .limit(1);
+
+          if (linkedBookings && linkedBookings.length > 0) {
+            await supabase
+              .from('calls')
+              .update({ outcome: 'booked' })
+              .eq('id', newCall.id);
+          }
         }
 
         const duration = Date.now() - startTime;
@@ -549,6 +571,28 @@ export async function POST(req: NextRequest) {
           vapiCallId: callData.callId,
           duration: callData.duration
         });
+
+        // Link any bookings that have this vapi_call_id in notes
+        await supabase
+          .from('bookings')
+          .update({ call_id: updatedCall.id })
+          .eq('tenant_id', tenantId)
+          .like('notes', `%VAPI_CALL_ID:${callData.callId}%`)
+          .is('call_id', null);
+
+        // Update outcome to 'booked' if booking exists
+        const { data: linkedBookings } = await supabase
+          .from('bookings')
+          .select('id')
+          .eq('call_id', updatedCall.id)
+          .limit(1);
+
+        if (linkedBookings && linkedBookings.length > 0) {
+          await supabase
+            .from('calls')
+            .update({ outcome: 'booked' })
+            .eq('id', updatedCall.id);
+        }
       }
 
       const duration = Date.now() - startTime;
@@ -567,6 +611,86 @@ export async function POST(req: NextRequest) {
         callId: callData.callId,
         status: message?.status
       });
+
+      // Create call record if it doesn't exist yet
+      const { data: existingCall } = await supabase
+        .from('calls')
+        .select('id')
+        .eq('vapi_call_id', callData.callId)
+        .single();
+
+      if (!existingCall) {
+        // Look up assistant DB ID if we have VAPI assistant ID
+        let assistantDbId = null;
+        if (callData.assistantId) {
+          const { data: assistant } = await supabase
+            .from('assistants')
+            .select('id')
+            .eq('vapi_assistant_id', callData.assistantId)
+            .single();
+          assistantDbId = assistant?.id || null;
+        }
+
+        const { data: newCall, error: insertError } = await supabase
+          .from('calls')
+          .insert({
+            tenant_id: tenantId,
+            assistant_id: assistantDbId,
+            vapi_call_id: callData.callId,
+            started_at: callData.startedAt || new Date().toISOString(),
+            outcome: 'unknown',
+            raw_json: {
+              call_id: callData.callId,
+              assistant_id: callData.assistantId,
+              phone_number: callData.phoneNumber,
+              customer: {
+                phone: callData.customer.phone,
+                name: callData.customer.name
+              },
+              started_at: callData.startedAt,
+              status: 'in-progress'
+            }
+          })
+          .select()
+          .single();
+
+        if (insertError) {
+          log.error('Failed to create call on status-update', {
+            error: insertError.message,
+            callId: callData.callId
+          });
+        } else {
+          console.log('✅ CALL CREATED on status-update:', newCall.id);
+          log.info('Call created on status-update', {
+            dbCallId: newCall.id,
+            vapiCallId: callData.callId,
+            tenantId
+          });
+
+          // Link any bookings immediately
+          await supabase
+            .from('bookings')
+            .update({ call_id: newCall.id })
+            .eq('tenant_id', tenantId)
+            .like('notes', `%VAPI_CALL_ID:${callData.callId}%`)
+            .is('call_id', null);
+
+          // Update outcome to 'booked' if booking exists
+          const { data: linkedBookings } = await supabase
+            .from('bookings')
+            .select('id')
+            .eq('call_id', newCall.id)
+            .limit(1);
+
+          if (linkedBookings && linkedBookings.length > 0) {
+            await supabase
+              .from('calls')
+              .update({ outcome: 'booked' })
+              .eq('id', newCall.id);
+            console.log('✅ OUTCOME updated to booked');
+          }
+        }
+      }
 
       const duration = Date.now() - startTime;
       return NextResponse.json({

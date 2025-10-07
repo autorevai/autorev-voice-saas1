@@ -83,20 +83,10 @@ export async function POST(req: NextRequest) {
     // Parse preferred time into actual datetime
     const bookingStartTime = parsePreferredTime(sanitized.preferred_time || 'tomorrow 9am');
 
-    // First, get the internal call ID from the vapi_call_id
-    let internalCallId = null;
-    if (callId) {
-      const { data: callRecord } = await db
-        .from('calls')
-        .select('id')
-        .eq('vapi_call_id', callId)
-        .single();
-      internalCallId = callRecord?.id || null;
-    }
-
+    // Store booking with vapi_call_id in metadata for later linking
     const { data: booking, error } = await db.from('bookings').insert({
       tenant_id: tenantId,
-      call_id: internalCallId,
+      call_id: null, // Will be linked later in end-of-call-report
       confirmation: confirmation,
       window_text: sanitized.preferred_time || 'Next available',
       start_ts: bookingStartTime,
@@ -111,7 +101,8 @@ export async function POST(req: NextRequest) {
       summary: sanitized.service_type,
       equipment: sanitized.equipment_info || null,
       priority: sanitized.service_type?.toLowerCase().includes('emergency') ? 'urgent' : 'standard',
-      source: 'voice_call'
+      source: 'voice_call',
+      notes: `VAPI_CALL_ID:${callId}` // Store vapi_call_id for later linking
     }).select().single();
     
     if (error) {
@@ -130,26 +121,6 @@ export async function POST(req: NextRequest) {
     }
 
     console.log('✅ Booking created:', confirmation, '/', sanitized.name);
-
-    // Update call outcome to 'booked' (only if we have internal call ID)
-    if (internalCallId) {
-      db.from('calls')
-        .update({ outcome: 'booked' })
-        .eq('id', internalCallId)
-        .then(() => {})
-        .catch(() => {});
-    }
-
-    // Log tool result (only if we have a valid call_id)
-    if (callId) {
-      db.from('tool_results').insert({
-        call_id: callId,
-        tool_name: 'create_booking',
-        request_json: args,
-        response_json: { confirmation, booking_id: booking.id },
-        success: true
-      }).then(() => {}).catch(() => {});
-    }
 
     const duration = Date.now() - startTime;
 
