@@ -739,7 +739,7 @@ export async function POST(req: NextRequest) {
       // Find the call record
       const { data: existingCall } = await supabase
         .from('calls')
-        .select('id, customer_name, customer_phone')
+        .select('id, customer_name, customer_phone, customer_address, customer_city, customer_state, customer_zip')
         .eq('vapi_call_id', callData.callId)
         .single();
 
@@ -765,6 +765,10 @@ export async function POST(req: NextRequest) {
             // Extract customer info
             const customerName = params.name || params.customer_name;
             const customerPhone = params.phone || params.customer_phone || params.phone_number;
+            const customerAddress = params.address || params.customer_address;
+            const customerCity = params.city || params.customer_city;
+            const customerState = params.state || params.customer_state;
+            const customerZip = params.zip || params.customer_zip || params.zip_code;
 
             // Update call record progressively
             const updates: any = {};
@@ -777,6 +781,26 @@ export async function POST(req: NextRequest) {
             if (customerPhone && !existingCall.customer_phone) {
               updates.customer_phone = customerPhone;
               console.log('✅ DB CALL: Customer phone added:', customerPhone);
+            }
+
+            if (customerAddress && !existingCall.customer_address) {
+              updates.customer_address = customerAddress;
+              console.log('✅ DB CALL: Customer address added:', customerAddress);
+            }
+
+            if (customerCity && !existingCall.customer_city) {
+              updates.customer_city = customerCity;
+              console.log('✅ DB CALL: Customer city added:', customerCity);
+            }
+
+            if (customerState && !existingCall.customer_state) {
+              updates.customer_state = customerState;
+              console.log('✅ DB CALL: Customer state added:', customerState);
+            }
+
+            if (customerZip && !existingCall.customer_zip) {
+              updates.customer_zip = customerZip;
+              console.log('✅ DB CALL: Customer zip added:', customerZip);
             }
 
             // Apply updates if any

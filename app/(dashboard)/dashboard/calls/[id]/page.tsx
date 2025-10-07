@@ -12,6 +12,12 @@ interface Call {
   outcome: string | null
   transcript_url: string | null
   raw_json: any
+  customer_name: string | null
+  customer_phone: string | null
+  customer_address: string | null
+  customer_city: string | null
+  customer_state: string | null
+  customer_zip: string | null
 }
 
 interface ToolResult {
@@ -135,9 +141,24 @@ function getOutcomeColor(outcome: string | null): string {
 }
 
 function getCustomerName(call: Call): string {
-  return call.raw_json?.customer?.name ||
+  return call.customer_name ||
+         call.raw_json?.customer?.name ||
+         call.customer_phone ||
          call.raw_json?.customer?.phone ||
          'Unknown'
+}
+
+function formatAddress(call: Call): string | null {
+  if (!call.customer_address) return null
+
+  const parts = [call.customer_address]
+  if (call.customer_city && call.customer_state) {
+    parts.push(`${call.customer_city}, ${call.customer_state} ${call.customer_zip || ''}`.trim())
+  } else if (call.customer_city) {
+    parts.push(call.customer_city)
+  }
+
+  return parts.join(', ')
 }
 
 function decodeTranscript(transcriptUrl: string | null): string {
@@ -165,7 +186,8 @@ export default async function CallDetailsPage({ params }: { params: Promise<{ id
 
   const { call, toolResults, booking } = callDetails
   const customerName = getCustomerName(call)
-  const customerPhone = call.raw_json?.customer?.phone || 'N/A'
+  const customerPhone = call.customer_phone || call.raw_json?.customer?.phone || 'N/A'
+  const customerAddress = formatAddress(call)
   const summary = call.raw_json?.summary || 'No summary available'
   const transcript = decodeTranscript(call.transcript_url)
 
@@ -194,7 +216,7 @@ export default async function CallDetailsPage({ params }: { params: Promise<{ id
 
       <div className="max-w-7xl mx-auto px-6 py-8">
         {/* Quick Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <div className="flex items-center space-x-3">
               <div className="p-2 bg-blue-100 rounded-lg">
@@ -202,10 +224,24 @@ export default async function CallDetailsPage({ params }: { params: Promise<{ id
               </div>
               <div>
                 <p className="text-sm text-gray-500">Phone</p>
-                <p className="text-lg font-semibold text-gray-900">{customerPhone}</p>
+                <p className="text-base font-semibold text-gray-900">{customerPhone}</p>
               </div>
             </div>
           </div>
+
+          {customerAddress && (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-purple-100 rounded-lg">
+                  <MapPin className="w-5 h-5 text-purple-600" />
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Address</p>
+                  <p className="text-sm font-semibold text-gray-900">{customerAddress}</p>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <div className="flex items-center space-x-3">

@@ -15,6 +15,10 @@ interface Call {
   outcome: string | null
   customer_name: string | null
   customer_phone: string | null
+  customer_address: string | null
+  customer_city: string | null
+  customer_state: string | null
+  customer_zip: string | null
   bookings?: {
     name: string
     phone: string
@@ -114,7 +118,7 @@ function getCustomerName(call: Call): string {
     return call.bookings[0].name;
   }
 
-  // Then try customer_name column (set from VAPI data)
+  // Then try customer_name column (from VAPI data collected during call)
   if (call.customer_name) {
     return call.customer_name;
   }

@@ -12,6 +12,10 @@ interface Call {
   outcome: string
   customer_name: string | null
   customer_phone: string | null
+  customer_address: string | null
+  customer_city: string | null
+  customer_state: string | null
+  customer_zip: string | null
   bookings?: { name: string, phone: string }[] | null
 }
 
@@ -141,7 +145,7 @@ async function getDashboardData(): Promise<DashboardData> {
       ? Math.round(((bookingsToday || 0) / callsToday * 100) * 10) / 10
       : 0
 
-    // Get recent calls with customer names from bookings
+    // Get recent calls with customer data
     const { data: recentCalls } = await db
       .from('calls')
       .select(`
@@ -153,6 +157,10 @@ async function getDashboardData(): Promise<DashboardData> {
         outcome,
         customer_name,
         customer_phone,
+        customer_address,
+        customer_city,
+        customer_state,
+        customer_zip,
         bookings(name, phone)
       `)
       .eq('tenant_id', tenantId)
