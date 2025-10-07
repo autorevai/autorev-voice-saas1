@@ -13,6 +13,7 @@ interface Call {
   ended_at: string | null
   duration_sec: number | null
   outcome: string | null
+  raw_json?: any
   bookings?: {
     name: string
     phone: string
@@ -104,6 +105,25 @@ function getOutcomeColor(outcome: string | null): string {
     case 'unknown': return 'text-gray-600 bg-gray-100'
     default: return 'text-gray-600 bg-gray-100'
   }
+}
+
+function getCustomerName(call: Call): string {
+  // First try to get name from linked booking
+  if (call.bookings && call.bookings.length > 0 && call.bookings[0].name) {
+    return call.bookings[0].name;
+  }
+
+  // Fallback: Parse from raw_json (from VAPI's call data)
+  if (call.raw_json?.customer?.name) {
+    return call.raw_json.customer.name;
+  }
+
+  // Last resort: Show phone number if available
+  if (call.raw_json?.customer?.phone) {
+    return formatPhoneNumber(call.raw_json.customer.phone);
+  }
+
+  return 'Unknown Customer';
 }
 
 function TrendIndicator({ trend }: { trend: number }) {
@@ -398,7 +418,7 @@ export default function DashboardClient({ initialData }: DashboardClientProps) {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {call.bookings && call.bookings.length > 0 ? call.bookings[0].name : 'Unknown Customer'}
+                      {getCustomerName(call)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {formatDuration(call.duration_sec)}

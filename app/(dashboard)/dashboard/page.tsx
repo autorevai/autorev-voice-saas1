@@ -10,6 +10,7 @@ interface Call {
   ended_at: string | null
   duration_sec: number | null
   outcome: string
+  raw_json?: any
   bookings?: { name: string, phone: string }[] | null
 }
 
@@ -143,12 +144,13 @@ async function getDashboardData(): Promise<DashboardData> {
     const { data: recentCalls } = await db
       .from('calls')
       .select(`
-        id, 
+        id,
         vapi_call_id,
         started_at,
         ended_at,
         duration_sec,
         outcome,
+        raw_json,
         bookings(name, phone)
       `)
       .eq('tenant_id', tenantId)
