@@ -494,40 +494,62 @@ export function VoiceConfigForm() {
             </Button>
           </div>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent>
           {config.services.length === 0 ? (
             <p className="text-sm text-gray-500 italic">
               No services added yet. Add services like "HVAC Maintenance" or "Emergency Repair"
             </p>
           ) : (
-            config.services.map((service, index) => (
-              <div key={index} className="flex items-start space-x-2">
-                <div className="flex-1 space-y-2">
-                  <input
-                    type="text"
-                    value={service.name}
-                    onChange={(e) => updateService(index, 'name', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    placeholder="Service name"
-                  />
-                  <input
-                    type="text"
-                    value={service.priceRange || ''}
-                    onChange={(e) => updateService(index, 'priceRange', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    placeholder="Price range (optional, e.g., $150-$300)"
-                  />
-                </div>
-                <Button
-                  type="button"
-                  onClick={() => removeService(index)}
-                  size="sm"
-                  variant="ghost"
-                >
-                  <Trash2 className="w-4 h-4 text-red-600" />
-                </Button>
-              </div>
-            ))
+            <div className="border border-gray-200 rounded-lg overflow-hidden">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Service Name
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Price Range
+                    </th>
+                    <th className="px-4 py-3 w-16"></th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {config.services.map((service, index) => (
+                    <tr key={index} className="hover:bg-gray-50">
+                      <td className="px-4 py-3">
+                        <input
+                          type="text"
+                          value={service.name}
+                          onChange={(e) => updateService(index, 'name', e.target.value)}
+                          className="w-full px-2 py-1 border-0 focus:ring-2 focus:ring-blue-500 rounded"
+                          placeholder="e.g., AC Repair"
+                        />
+                      </td>
+                      <td className="px-4 py-3">
+                        <input
+                          type="text"
+                          value={service.priceRange || ''}
+                          onChange={(e) => updateService(index, 'priceRange', e.target.value)}
+                          className="w-full px-2 py-1 border-0 focus:ring-2 focus:ring-blue-500 rounded"
+                          placeholder="e.g., $150-$500"
+                        />
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <Button
+                          type="button"
+                          onClick={() => removeService(index)}
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 w-8 p-0"
+                        >
+                          <Trash2 className="w-4 h-4 text-gray-400 hover:text-red-600" />
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </CardContent>
       </Card>

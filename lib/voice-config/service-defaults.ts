@@ -4,56 +4,55 @@
 interface ServiceDefault {
   name: string
   priceRange?: string
-  description?: string
 }
 
 export const INDUSTRY_SERVICE_DEFAULTS: Record<string, ServiceDefault[]> = {
   hvac: [
-    { name: 'AC Repair', priceRange: '$150-$500', description: 'Air conditioning repair and diagnostics' },
-    { name: 'Heating Repair', priceRange: '$150-$500', description: 'Furnace and heating system repair' },
-    { name: 'Maintenance Tune-up', priceRange: '$99-$200', description: 'Seasonal maintenance and inspection' },
-    { name: 'System Installation', priceRange: '$3,000-$10,000', description: 'New HVAC system installation' },
-    { name: 'Emergency Service', priceRange: '$200-$750', description: '24/7 emergency HVAC service' }
+    { name: 'AC Repair', priceRange: '$150-$500' },
+    { name: 'Heating Repair', priceRange: '$150-$500' },
+    { name: 'Maintenance Tune-up', priceRange: '$99-$200' },
+    { name: 'System Installation', priceRange: '$3,000-$10,000' },
+    { name: 'Emergency Service', priceRange: '$200-$750' }
   ],
 
   plumbing: [
-    { name: 'Leak Repair', priceRange: '$150-$400', description: 'Fix leaks and water damage' },
-    { name: 'Drain Cleaning', priceRange: '$100-$300', description: 'Unclog drains and sewer lines' },
-    { name: 'Water Heater Service', priceRange: '$150-$500', description: 'Repair or replace water heaters' },
-    { name: 'Toilet Repair', priceRange: '$100-$250', description: 'Fix running or clogged toilets' },
-    { name: 'Emergency Plumbing', priceRange: '$200-$600', description: '24/7 emergency plumbing service' }
+    { name: 'Leak Repair', priceRange: '$150-$400' },
+    { name: 'Drain Cleaning', priceRange: '$100-$300' },
+    { name: 'Water Heater Service', priceRange: '$150-$500' },
+    { name: 'Toilet Repair', priceRange: '$100-$250' },
+    { name: 'Emergency Plumbing', priceRange: '$200-$600' }
   ],
 
   electrical: [
-    { name: 'Outlet & Switch Repair', priceRange: '$100-$250', description: 'Fix electrical outlets and switches' },
-    { name: 'Panel Upgrade', priceRange: '$1,500-$3,000', description: 'Upgrade electrical panel' },
-    { name: 'Lighting Installation', priceRange: '$100-$500', description: 'Install new lighting fixtures' },
-    { name: 'Generator Installation', priceRange: '$3,000-$8,000', description: 'Backup generator installation' },
-    { name: 'Emergency Electrical', priceRange: '$200-$600', description: '24/7 emergency electrical service' }
+    { name: 'Outlet & Switch Repair', priceRange: '$100-$250' },
+    { name: 'Panel Upgrade', priceRange: '$1,500-$3,000' },
+    { name: 'Lighting Installation', priceRange: '$100-$500' },
+    { name: 'Generator Installation', priceRange: '$3,000-$8,000' },
+    { name: 'Emergency Electrical', priceRange: '$200-$600' }
   ],
 
   roofing: [
-    { name: 'Roof Repair', priceRange: '$300-$1,500', description: 'Fix leaks and damaged shingles' },
-    { name: 'Roof Replacement', priceRange: '$8,000-$20,000', description: 'Complete roof replacement' },
-    { name: 'Gutter Cleaning', priceRange: '$100-$300', description: 'Clean gutters and downspouts' },
-    { name: 'Roof Inspection', priceRange: '$150-$400', description: 'Professional roof inspection' },
-    { name: 'Emergency Tarping', priceRange: '$300-$800', description: 'Emergency storm damage tarping' }
+    { name: 'Roof Repair', priceRange: '$300-$1,500' },
+    { name: 'Roof Replacement', priceRange: '$8,000-$20,000' },
+    { name: 'Gutter Cleaning', priceRange: '$100-$300' },
+    { name: 'Roof Inspection', priceRange: '$150-$400' },
+    { name: 'Emergency Tarping', priceRange: '$300-$800' }
   ],
 
   landscaping: [
-    { name: 'Lawn Care', priceRange: '$50-$150/visit', description: 'Mowing, edging, and trimming' },
-    { name: 'Tree Trimming', priceRange: '$200-$800', description: 'Tree and shrub trimming' },
-    { name: 'Landscape Design', priceRange: '$500-$5,000', description: 'Design and installation' },
-    { name: 'Seasonal Cleanup', priceRange: '$150-$500', description: 'Spring and fall cleanup' },
-    { name: 'Irrigation Service', priceRange: '$100-$400', description: 'Sprinkler system service' }
+    { name: 'Lawn Care', priceRange: '$50-$150/visit' },
+    { name: 'Tree Trimming', priceRange: '$200-$800' },
+    { name: 'Landscape Design', priceRange: '$500-$5,000' },
+    { name: 'Seasonal Cleanup', priceRange: '$150-$500' },
+    { name: 'Irrigation Service', priceRange: '$100-$400' }
   ],
 
   pool_service: [
-    { name: 'Weekly Cleaning', priceRange: '$80-$150/week', description: 'Regular pool maintenance' },
-    { name: 'Chemical Balancing', priceRange: '$50-$100', description: 'Water chemistry testing and balancing' },
-    { name: 'Equipment Repair', priceRange: '$150-$500', description: 'Pump and filter repair' },
-    { name: 'Pool Opening/Closing', priceRange: '$150-$400', description: 'Seasonal pool service' },
-    { name: 'Green Pool Cleanup', priceRange: '$300-$800', description: 'Restore neglected pools' }
+    { name: 'Weekly Cleaning', priceRange: '$80-$150/week' },
+    { name: 'Chemical Balancing', priceRange: '$50-$100' },
+    { name: 'Equipment Repair', priceRange: '$150-$500' },
+    { name: 'Pool Opening/Closing', priceRange: '$150-$400' },
+    { name: 'Green Pool Cleanup', priceRange: '$300-$800' }
   ]
 }
 

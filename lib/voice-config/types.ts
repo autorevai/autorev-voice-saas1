@@ -26,7 +26,6 @@ export interface VoiceConfig {
   services: Array<{
     name: string
     priceRange?: string
-    description?: string
   }>
 }
 
