@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { AlertCircle, TrendingUp, Phone, Clock, RefreshCw } from 'lucide-react'
+import TrialUsageWidget from './TrialUsageWidget'
 
 interface UsageData {
   minutesUsed: number
@@ -14,8 +15,19 @@ interface UsageData {
   planTier: string
 }
 
+interface TrialUsageData {
+  isTrial: boolean
+  minutesUsed: number
+  minutesIncluded: number
+  callsUsed: number
+  callsIncluded: number
+  limitExceeded?: boolean
+  limitType?: 'minutes' | 'calls' | null
+}
+
 export default function UsageDashboard() {
   const [usage, setUsage] = useState<UsageData | null>(null)
+  const [trialUsage, setTrialUsage] = useState<TrialUsageData | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
 
@@ -26,6 +38,20 @@ export default function UsageDashboard() {
   const fetchUsage = async () => {
     try {
       setRefreshing(true)
+
+      // Try trial usage first
+      const trialResponse = await fetch('/api/usage/trial')
+      if (trialResponse.ok) {
+        const trialData = await trialResponse.json()
+        if (trialData.isTrial) {
+          setTrialUsage(trialData)
+          setLoading(false)
+          setRefreshing(false)
+          return
+        }
+      }
+
+      // Fall back to regular usage
       const response = await fetch('/api/usage/current')
       const data = await response.json()
       setUsage(data)
@@ -43,6 +69,11 @@ export default function UsageDashboard() {
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
       </div>
     )
+  }
+
+  // Show trial usage widget if in trial
+  if (trialUsage) {
+    return <TrialUsageWidget usage={trialUsage} />
   }
 
   if (!usage) {
