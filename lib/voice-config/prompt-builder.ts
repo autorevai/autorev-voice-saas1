@@ -43,7 +43,6 @@ export function buildSystemPrompt(tenant: Tenant, config: VoiceConfig): string {
     ? config.services.map(s => {
         let line = `- ${s.name}`
         if (s.priceRange) line += ` (${s.priceRange})`
-        if (s.description) line += `: ${s.description}`
         return line
       }).join('\n')
     : 'Offer to book appointments for any requested services.'
@@ -100,8 +99,6 @@ export function previewPrompt(tenant: Tenant, config: VoiceConfig): {
   style: string
   keyPoints: string[]
 } {
-  const prompt = buildSystemPrompt(tenant, config)
-
   return {
     greeting: config.greetingType === 'custom' && config.customGreeting
       ? config.customGreeting
