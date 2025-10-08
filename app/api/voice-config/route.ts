@@ -2,7 +2,8 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { DEFAULT_VOICE_CONFIG } from '@/lib/voice-config/types'
+import { DEFAULT_VOICE_CONFIG, VoiceConfig } from '@/lib/voice-config/types'
+import { INDUSTRY_SERVICE_DEFAULTS, INDUSTRY_KEY_INFO } from '@/lib/voice-config/service-defaults'
 
 export async function GET(req: NextRequest) {
   try {
@@ -27,7 +28,7 @@ export async function GET(req: NextRequest) {
     // Get tenant with voice config
     const { data: tenant, error } = await supabase
       .from('tenants')
-      .select('voice_config, voice_config_published_at, voice_config_pending_changes')
+      .select('voice_config, voice_config_published_at, voice_config_pending_changes, industry')
       .eq('id', userRecord.tenant_id)
       .single()
 
@@ -36,8 +37,37 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
+    // Auto-populate config from industry if it doesn't exist
+    let config: VoiceConfig = tenant?.voice_config as VoiceConfig
+
+    if (!config && tenant?.industry) {
+      // First time loading - auto-populate from industry
+      const industry = tenant.industry.toLowerCase()
+      const defaultServices = INDUSTRY_SERVICE_DEFAULTS[industry] || []
+      const defaultKeyInfo = INDUSTRY_KEY_INFO[industry] || []
+
+      config = {
+        ...DEFAULT_VOICE_CONFIG,
+        services: defaultServices,
+        keyInfo: defaultKeyInfo
+      }
+
+      // Save the auto-populated config
+      await supabase
+        .from('tenants')
+        .update({
+          voice_config: config,
+          voice_config_pending_changes: true
+        })
+        .eq('id', userRecord.tenant_id)
+
+      console.log('[VOICE_CONFIG_API] Auto-populated config for industry:', industry)
+    } else if (!config) {
+      config = DEFAULT_VOICE_CONFIG
+    }
+
     return NextResponse.json({
-      config: tenant?.voice_config || DEFAULT_VOICE_CONFIG,
+      config,
       lastPublished: tenant?.voice_config_published_at,
       hasPendingChanges: tenant?.voice_config_pending_changes || false
     })
