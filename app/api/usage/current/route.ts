@@ -52,13 +52,28 @@ export async function GET(req: NextRequest) {
     const plan = STRIPE_CONFIG.plans[tenant.plan_tier as keyof typeof STRIPE_CONFIG.plans]
 
     if (!usage) {
-      // No usage record yet for current period, return defaults
+      // No usage_tracking record - calculate from calls table for current period
+      const periodStart = tenant.current_period_start || new Date().toISOString()
+      const periodEnd = tenant.current_period_end || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+
+      const { data: calls } = await supabase
+        .from('calls')
+        .select('duration_sec')
+        .eq('tenant_id', tenantId)
+        .gte('started_at', periodStart)
+        .lte('started_at', periodEnd)
+
+      const totalSeconds = calls?.reduce((sum, c) => sum + (c.duration_sec || 0), 0) || 0
+      const minutesUsed = Math.ceil(totalSeconds / 60)
+      const overageMinutes = Math.max(0, minutesUsed - plan.minutesIncluded)
+      const overageAmount = Math.round(overageMinutes * 15) // $0.15/min = 15 cents
+
       return NextResponse.json({
-        minutesUsed: 0,
+        minutesUsed,
         minutesIncluded: plan.minutesIncluded,
-        overageMinutes: 0,
-        overageAmount: 0,
-        periodEnd: tenant.current_period_end || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+        overageMinutes,
+        overageAmount,
+        periodEnd,
         planTier: tenant.plan_tier
       })
     }

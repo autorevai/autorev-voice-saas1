@@ -9,13 +9,13 @@ export default function DashboardPageLayout({
 }) {
   return (
     <>
-      {/* Trial Banner - rendered at top of page */}
-      <div className="min-h-screen bg-gray-50 p-6">
+      {/* Trial Banner and Usage Dashboard */}
+      <div className="bg-gray-50 p-6">
         <div className="max-w-7xl mx-auto">
           <TrialBanner />
 
           {/* Usage Dashboard */}
-          <div className="mb-2">
+          <div className="mb-6">
             <UsageDashboard />
           </div>
         </div>
