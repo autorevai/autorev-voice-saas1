@@ -15,7 +15,7 @@ export default function DashboardPageLayout({
           <TrialBanner />
 
           {/* Usage Dashboard */}
-          <div className="mb-8">
+          <div className="mb-2">
             <UsageDashboard />
           </div>
         </div>
