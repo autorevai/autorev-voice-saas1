@@ -47,6 +47,12 @@ export default function DashboardLayout({
                 >
                   Automations
                 </Link>
+                <Link
+                  href="/settings"
+                  className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium transition-colors"
+                >
+                  Settings
+                </Link>
 
                 {/* User Menu */}
                 <UserMenu />
