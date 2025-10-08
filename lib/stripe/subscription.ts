@@ -30,7 +30,7 @@ export async function createSubscription(data: CreateSubscriptionData) {
         price: plan.priceId,
       },
     ],
-    trial_period_days: data.trialDays || STRIPE_CONFIG.trial.durationDays,
+    trial_period_days: data.trialDays || plan.trialDays || 14,
     metadata: {
       tenant_id: data.tenantId,
       plan_tier: data.planTier,
