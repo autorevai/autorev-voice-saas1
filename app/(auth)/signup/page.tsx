@@ -50,22 +50,168 @@ export default function SignupPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
-      <div className="max-w-7xl mx-auto px-4 py-12">
-        {/* Header */}
-        <div className="text-center mb-12">
-          <div className="inline-flex items-center gap-2 bg-blue-100 text-blue-700 px-4 py-2 rounded-full text-sm font-medium mb-4">
-            <Zap className="w-4 h-4" />
+      <div className="max-w-7xl mx-auto px-4 py-6 md:py-12">
+        {/* Compact Header - Mobile Optimized */}
+        <div className="text-center mb-6 md:mb-8">
+          <div className="inline-flex items-center gap-2 bg-blue-100 text-blue-700 px-3 py-1.5 md:px-4 md:py-2 rounded-full text-xs md:text-sm font-medium mb-3 md:mb-4">
+            <Zap className="w-3 h-3 md:w-4 md:h-4" />
             Start Your 14-Day Free Trial
           </div>
-          <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
+          <h1 className="text-2xl md:text-4xl lg:text-5xl font-bold text-gray-900 mb-2 md:mb-4">
             Never Miss Another Lead
           </h1>
-          <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+          <p className="text-sm md:text-xl text-gray-600 max-w-2xl mx-auto px-4">
             Stop losing revenue to missed calls. Your AI receptionist answers every call, books appointments, and follows up automatically.
           </p>
         </div>
 
-        <div className="grid lg:grid-cols-3 gap-8 items-start">
+        {/* Mobile: Form First, then Benefits | Desktop: 3 columns */}
+        <div className="lg:hidden">
+          {/* MOBILE: Signup Form FIRST (above the fold) */}
+          <div className="mb-6">
+            <div className="bg-white rounded-2xl shadow-xl p-6 border border-gray-200">
+              <div className="mb-4 text-center">
+                <h2 className="text-xl font-bold text-gray-900 mb-1">Create your account</h2>
+                <p className="text-sm text-gray-600">Get started in less than 2 minutes</p>
+              </div>
+
+              {error && (
+                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-sm text-red-800">{error}</p>
+                </div>
+              )}
+
+              <form onSubmit={handleSignup} className="space-y-3">
+                <div>
+                  <label htmlFor="fullName-mobile" className="block text-sm font-medium text-gray-700 mb-1">
+                    Your Name
+                  </label>
+                  <input
+                    id="fullName-mobile"
+                    type="text"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="John Doe"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="email-mobile" className="block text-sm font-medium text-gray-700 mb-1">
+                    Work Email
+                  </label>
+                  <input
+                    id="email-mobile"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="you@company.com"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="password-mobile" className="block text-sm font-medium text-gray-700 mb-1">
+                    Password
+                  </label>
+                  <input
+                    id="password-mobile"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="••••••••"
+                    minLength={8}
+                    required
+                  />
+                  <p className="mt-1 text-xs text-gray-500">Minimum 8 characters</p>
+                </div>
+
+                <div className="flex items-start">
+                  <input
+                    id="terms-mobile"
+                    type="checkbox"
+                    checked={agreedToTerms}
+                    onChange={(e) => setAgreedToTerms(e.target.checked)}
+                    className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    required
+                  />
+                  <label htmlFor="terms-mobile" className="ml-2 text-xs text-gray-600">
+                    I agree to the{' '}
+                    <a href="/terms" target="_blank" className="text-blue-600 hover:underline">
+                      Terms of Service
+                    </a>
+                    {' '}and{' '}
+                    <a href="/privacy" target="_blank" className="text-blue-600 hover:underline">
+                      Privacy Policy
+                    </a>
+                  </label>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading || !agreedToTerms}
+                  className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white py-3 px-6 rounded-lg hover:from-blue-700 hover:to-blue-800 disabled:opacity-50 disabled:cursor-not-allowed font-semibold shadow-lg shadow-blue-500/30 transition-all"
+                >
+                  {loading ? 'Creating account...' : 'Start Free Trial →'}
+                </button>
+              </form>
+
+              <div className="mt-4 text-center text-sm text-gray-600">
+                Already have an account?{' '}
+                <Link href="/login" className="text-blue-600 hover:underline font-medium">
+                  Sign in
+                </Link>
+              </div>
+            </div>
+          </div>
+
+          {/* MOBILE: Benefits AFTER form */}
+          <div className="space-y-4 mb-6">
+            <div className="bg-gradient-to-br from-orange-50 to-red-50 rounded-xl p-4 border-2 border-orange-200">
+              <div className="flex items-center gap-2 text-orange-700 font-semibold mb-2 text-sm">
+                <Zap className="w-4 h-4" />
+                Limited Time Offer
+              </div>
+              <p className="text-sm text-gray-700 mb-1">
+                <strong className="text-orange-700">10 free calls or 25 minutes</strong> included in your trial
+              </p>
+              <p className="text-xs text-gray-600">
+                No credit card required • Cancel anytime
+              </p>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
+              <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2 text-sm">
+                <Shield className="w-4 h-4 text-blue-600" />
+                What You Get
+              </h3>
+              <ul className="space-y-2">
+                <li className="flex items-start gap-2">
+                  <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
+                  <span className="text-xs text-gray-700">24/7 AI receptionist that sounds human</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
+                  <span className="text-xs text-gray-700">Automatic appointment booking & calendar sync</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
+                  <span className="text-xs text-gray-700">SMS confirmations & reminders</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
+                  <span className="text-xs text-gray-700">Missed call follow-up (automatic)</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        {/* DESKTOP: Original 3-column layout */}
+        <div className="hidden lg:grid lg:grid-cols-3 gap-8 items-start">
           {/* Left Column - Benefits */}
           <div className="lg:col-span-1 space-y-6">
             <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
