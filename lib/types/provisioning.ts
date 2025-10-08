@@ -1,4 +1,4 @@
-export type Industry = 'hvac' | 'plumbing' | 'electrical' | 'dental' | 'legal' | 'medical';
+export type Industry = 'hvac' | 'plumbing' | 'electrical' | 'roofing' | 'landscaping' | 'pool_service';
 
 export type PlanCode = 'starter' | 'core' | 'pro';
 
