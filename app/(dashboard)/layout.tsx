@@ -27,15 +27,21 @@ export default function DashboardLayout({
                   href="/dashboard"
                   className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium transition-colors"
                 >
+                  Dashboard
+                </Link>
+                <Link
+                  href="/calls"
+                  className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium transition-colors"
+                >
                   Calls
                 </Link>
                 <Link
-                  href="/dashboard/bookings"
+                  href="/bookings"
                   className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium transition-colors"
                 >
                   Bookings
                 </Link>
-                
+
                 {/* User Menu */}
                 <UserMenu />
               </div>

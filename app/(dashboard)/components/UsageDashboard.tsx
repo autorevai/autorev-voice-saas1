@@ -64,7 +64,7 @@ export default function UsageDashboard() {
   const daysRemaining = Math.ceil((new Date(usage.periodEnd).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Alert if near/over limit */}
       {isNearLimit && (
         <div className={`p-4 rounded-lg border ${
@@ -96,7 +96,7 @@ export default function UsageDashboard() {
       )}
 
       {/* Main Usage Cards */}
-      <div className="grid md:grid-cols-3 gap-6">
+      <div className="grid md:grid-cols-3 gap-4">
         {/* Minutes Used */}
         <Card className="border-l-4 border-l-blue-500">
           <CardHeader className="pb-2">
