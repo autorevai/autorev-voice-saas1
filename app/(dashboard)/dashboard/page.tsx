@@ -447,16 +447,19 @@ export default async function DashboardPage() {
         <h1 className="text-2xl font-bold text-gray-900 mb-6">Dashboard</h1>
 
         {/* Trial Status Banner */}
-        {data.tenant?.stripe_subscription_status === 'trialing' && !data.tenant?.trial_blocked && (
-          <TrialStatusBanner
-            tenant={data.tenant as any}
-            variant={getTrialVariant(data.tenant.trial_variant || data.tenant.id)}
-            plan={{
-              ...getPlan((data.tenant.stripe_plan_tier as 'starter' | 'growth' | 'pro') || 'starter'),
-              features: undefined as any // Banner doesn't use features
-            }}
-          />
-        )}
+        {data.tenant?.stripe_subscription_status === 'trialing' && !data.tenant?.trial_blocked && (() => {
+          const planData = getPlan((data.tenant.stripe_plan_tier as 'starter' | 'growth' | 'pro') || 'starter')
+          return (
+            <TrialStatusBanner
+              tenant={data.tenant as any}
+              variant={getTrialVariant(data.tenant.trial_variant || data.tenant.id)}
+              plan={{
+                name: planData.name,
+                price: planData.price
+              }}
+            />
+          )
+        })()}
 
         {/* Voice AI Status Card */}
         {data.assistant && data.assistant.vapi_number_id && data.assistant.vapi_assistant_id ? (
