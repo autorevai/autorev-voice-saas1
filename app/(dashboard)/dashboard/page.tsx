@@ -4,9 +4,13 @@ import PhoneNumberDisplay from './components/PhoneNumberDisplay'
 import PhoneNumberCard from './components/PhoneNumberCard'
 import CopyButton from './components/CopyButton'
 import AutomationActivityFeed from './components/AutomationActivityFeed'
+import { TrialBlockedScreen } from './components/TrialBlockedScreen'
+import { TrialStatusBanner } from './components/TrialStatusBanner'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { TrendingUp, TrendingDown } from 'lucide-react'
+import { getTrialVariant } from '@/lib/trial/config'
+import { getPlan } from '@/lib/stripe/config'
 
 interface Call {
   id: string
@@ -48,6 +52,7 @@ interface DashboardData {
   totalBookings: number
   conversionRate: number
   recentCalls: Call[]
+  tenant?: any
   callsByDay: any[]
   conversionFunnel: any[]
   callsByHour: any[]
@@ -99,10 +104,10 @@ async function getDashboardData(): Promise<DashboardData> {
     
     const tenantId = userRecord.tenant_id
 
-    // Get tenant setup status
+    // Get tenant setup status and trial info
     const { data: tenant, error: tenantError } = await db
       .from('tenants')
-      .select('setup_completed')
+      .select('id, name, setup_completed, trial_blocked, trial_calls_used, trial_minutes_used, trial_variant, stripe_subscription_status, stripe_trial_end, stripe_plan_tier')
       .eq('id', tenantId)
       .single()
     
@@ -369,7 +374,8 @@ async function getDashboardData(): Promise<DashboardData> {
       setupCompleted: tenant?.setup_completed || false,
       automationActivities,
       totalRecoveries: totalRecoveries || 0,
-      recoverySuccessRate
+      recoverySuccessRate,
+      tenant: tenant
     }
   } catch (error: any) {
     console.error('Dashboard data fetch error:', error)
@@ -417,11 +423,41 @@ export default async function DashboardPage() {
     )
   }
 
+  // Check if trial is blocked
+  if (data.tenant?.trial_blocked && data.tenant?.stripe_subscription_status === 'trialing') {
+    const variant = getTrialVariant(data.tenant.trial_variant || data.tenant.id)
+    const planData = getPlan((data.tenant.stripe_plan_tier as 'starter' | 'growth' | 'pro') || 'starter')
+    const plan = {
+      ...planData,
+      features: [...planData.features] // Convert readonly to mutable
+    }
+
+    return (
+      <TrialBlockedScreen
+        tenant={data.tenant as any}
+        variant={variant}
+        plan={plan}
+      />
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto">
         <h1 className="text-2xl font-bold text-gray-900 mb-6">Dashboard</h1>
-        
+
+        {/* Trial Status Banner */}
+        {data.tenant?.stripe_subscription_status === 'trialing' && !data.tenant?.trial_blocked && (
+          <TrialStatusBanner
+            tenant={data.tenant as any}
+            variant={getTrialVariant(data.tenant.trial_variant || data.tenant.id)}
+            plan={{
+              ...getPlan((data.tenant.stripe_plan_tier as 'starter' | 'growth' | 'pro') || 'starter'),
+              features: undefined as any // Banner doesn't use features
+            }}
+          />
+        )}
+
         {/* Voice AI Status Card */}
         {data.assistant && data.assistant.vapi_number_id && data.assistant.vapi_assistant_id ? (
           <div className="mb-8">

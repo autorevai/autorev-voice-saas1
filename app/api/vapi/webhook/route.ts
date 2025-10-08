@@ -293,6 +293,19 @@ export async function POST(req: NextRequest) {
     if (messageType === 'assistant-request') {
       console.log('📞 Call starting:', callData.callId?.substring(0, 12));
 
+      // CHECK TRIAL LIMITS BEFORE ALLOWING CALL
+      const { checkTrialBeforeCall } = await import('./trial-check')
+      const trialCheck = await checkTrialBeforeCall(tenantId)
+
+      if (!trialCheck.allowed) {
+        console.log('🚫 Call blocked due to trial limits:', trialCheck.message)
+        return NextResponse.json({
+          error: trialCheck.message,
+          blocked: true,
+          requestId
+        }, { status: 403 })
+      }
+
       const { data: existingCall } = await supabase
         .from('calls')
         .select('id')
@@ -842,6 +855,17 @@ export async function POST(req: NextRequest) {
       } catch (recoveryError) {
         console.error('Error triggering Smart Call Recovery:', recoveryError);
         // Don't fail webhook if recovery fails
+      }
+
+      // ========================================
+      // TRACK TRIAL USAGE
+      // ========================================
+      try {
+        const { handleCallEnded } = await import('./trial-check')
+        await handleCallEnded(tenantId, callData.callId, callData.duration || 0)
+      } catch (trialError) {
+        console.error('Error tracking trial usage:', trialError)
+        // Don't fail webhook if trial tracking fails
       }
 
       const duration = Date.now() - startTime;
