@@ -4,13 +4,16 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTenant } from '@/lib/tenant-context'
 import { PLAYBOOK_TEMPLATES } from '@/lib/playbooks'
-import { ArrowLeft, ArrowRight, Check, Copy, Phone, MapPin, Building, Wrench, Heart, Scale, Stethoscope } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, Copy, Phone, MapPin, Building, Wrench, Heart, Scale, Stethoscope, Home, Trees, Waves } from 'lucide-react'
 import type { Industry, BusinessProfile } from '@/lib/types/provisioning'
 
 const industryIcons = {
   hvac: Wrench,
   plumbing: Wrench,
   electrical: Wrench,
+  roofing: Home,
+  landscaping: Trees,
+  pool_service: Waves,
   dental: Heart,
   legal: Scale,
   medical: Stethoscope
