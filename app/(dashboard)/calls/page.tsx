@@ -18,6 +18,7 @@ interface Call {
   customer_state: string | null
   customer_zip: string | null
   bookings?: { name: string; phone: string }[] | null
+  missed_call_rescues?: { sms_sent: boolean; outcome: string | null }[] | null
 }
 
 async function getCalls(): Promise<Call[]> {
@@ -60,7 +61,8 @@ async function getCalls(): Promise<Call[]> {
         customer_city,
         customer_state,
         customer_zip,
-        bookings(name, phone)
+        bookings(name, phone),
+        missed_call_rescues(sms_sent, outcome)
       `)
       .eq('tenant_id', tenantId)
       .order('started_at', { ascending: false })
@@ -117,6 +119,30 @@ function getOutcomeBadge(outcome: string) {
       {variant.label}
     </Badge>
   )
+}
+
+function getRecoveryBadge(call: Call) {
+  const rescue = call.missed_call_rescues?.[0]
+
+  if (!rescue) return null
+
+  if (rescue.outcome === 'booked') {
+    return (
+      <Badge className="bg-green-100 text-green-800 border-green-200 border text-xs">
+        🎯 Rescued
+      </Badge>
+    )
+  }
+
+  if (rescue.sms_sent) {
+    return (
+      <Badge className="bg-blue-100 text-blue-800 border-blue-200 border text-xs">
+        💬 SMS Sent
+      </Badge>
+    )
+  }
+
+  return null
 }
 
 export default async function CallsPage() {
@@ -273,7 +299,10 @@ export default async function CallsPage() {
                           {formatDuration(call.duration_sec)}
                         </td>
                         <td className="py-3 px-4 text-sm">
-                          {getOutcomeBadge(call.outcome)}
+                          <div className="flex flex-col space-y-1">
+                            {getOutcomeBadge(call.outcome)}
+                            {getRecoveryBadge(call)}
+                          </div>
                         </td>
                         <td className="py-3 px-4 text-sm">
                           <Link

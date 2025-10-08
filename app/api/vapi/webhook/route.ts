@@ -791,6 +791,59 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      // ========================================
+      // TRIGGER: Smart Call Recovery Automation
+      // ========================================
+      // Check if call qualifies for recovery and trigger automation with urgency detection
+      try {
+        const finalCallId = updatedCall?.id || callData.callId;
+        if (finalCallId && callData.callId) {
+          // Get final call state to check for booking
+          const { data: callWithBooking } = await supabase
+            .from('calls')
+            .select('id, outcome, duration_sec, customer_phone, customer_name, transcript, summary')
+            .eq('vapi_call_id', callData.callId)
+            .single();
+
+          if (callWithBooking) {
+            const hasBooking = callWithBooking.outcome === 'booked';
+            const customerPhone = callWithBooking.customer_phone || callData.customer.phone;
+
+            if (customerPhone && !hasBooking) {
+              // Trigger Smart Call Recovery (fire and forget - don't await)
+              fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/automations/missed-call-rescue`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  tenantId,
+                  callId: callWithBooking.id,
+                  customerPhone,
+                  customerName: callWithBooking.customer_name || callData.customer.name,
+                  callDuration: callData.duration,
+                  outcome: callWithBooking.outcome,
+                  hasBooking,
+                  transcript: callWithBooking.transcript || callData.transcript,
+                  summary: callWithBooking.summary || callData.summary
+                })
+              }).catch(err => {
+                console.error('Failed to trigger Smart Call Recovery:', err);
+              });
+
+              log.info('Triggered Smart Call Recovery automation', {
+                callId: callWithBooking.id,
+                customerPhone,
+                duration: callData.duration,
+                hasTranscript: !!(callWithBooking.transcript || callData.transcript),
+                hasSummary: !!(callWithBooking.summary || callData.summary)
+              });
+            }
+          }
+        }
+      } catch (recoveryError) {
+        console.error('Error triggering Smart Call Recovery:', recoveryError);
+        // Don't fail webhook if recovery fails
+      }
+
       const duration = Date.now() - startTime;
       return NextResponse.json({
         received: true,

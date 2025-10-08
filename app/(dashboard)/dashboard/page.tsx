@@ -3,6 +3,7 @@ import DashboardClient from './components/DashboardClient'
 import PhoneNumberDisplay from './components/PhoneNumberDisplay'
 import PhoneNumberCard from './components/PhoneNumberCard'
 import CopyButton from './components/CopyButton'
+import AutomationActivityFeed from './components/AutomationActivityFeed'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { TrendingUp, TrendingDown } from 'lucide-react'
@@ -31,6 +32,16 @@ interface Assistant {
   status: string
 }
 
+interface ActivityItem {
+  id: string
+  type: 'smart_call_recovery' | 'after_hours' | 'text_to_pay' | 'review'
+  title: string
+  description: string
+  time: string
+  impact?: string
+  isUrgent?: boolean
+}
+
 interface DashboardData {
   callsToday: number
   bookingsToday: number
@@ -48,6 +59,10 @@ interface DashboardData {
   lastCallTime?: string
   // Setup status
   setupCompleted: boolean
+  // Automation stats
+  automationActivities: ActivityItem[]
+  totalRecoveries: number
+  recoverySuccessRate: number
 }
 
 async function getDashboardData(): Promise<DashboardData> {
@@ -304,6 +319,38 @@ async function getDashboardData(): Promise<DashboardData> {
     const conversionRateTrend = 0 // Simplified for now
     const totalBookingsTrend = 0 // Simplified for now
 
+    // Get automation stats - Smart Call Recovery
+    const { data: recoveryAttempts, count: totalRecoveries } = await db
+      .from('missed_call_rescues')
+      .select('*, calls!missed_call_rescues_original_call_id_fkey(customer_name, customer_phone)', { count: 'exact' })
+      .eq('tenant_id', tenantId)
+      .gte('created_at', todayISO)
+      .order('created_at', { ascending: false })
+      .limit(10)
+
+    const successfulRecoveries = recoveryAttempts?.filter(r => r.outcome === 'booked').length || 0
+    const recoverySuccessRate = totalRecoveries && totalRecoveries > 0
+      ? Math.round((successfulRecoveries / totalRecoveries) * 100)
+      : 0
+
+    // Build activity feed items
+    const automationActivities: ActivityItem[] = (recoveryAttempts || []).map((recovery: any) => {
+      const timeAgo = getTimeAgo(new Date(recovery.created_at))
+      const customerName = recovery.calls?.customer_name || 'Customer'
+
+      return {
+        id: recovery.id,
+        type: 'smart_call_recovery' as const,
+        title: 'Smart Call Recovery',
+        description: recovery.sms_sent
+          ? `SMS sent to ${customerName}${recovery.outcome === 'booked' ? ' - Converted to booking!' : ''}`
+          : `Recovery attempted for ${customerName}`,
+        time: timeAgo,
+        impact: recovery.outcome === 'booked' ? 'Booking secured' : undefined,
+        isUrgent: false // Could add urgency detection here
+      }
+    })
+
     return {
       callsToday: callsToday || 0,
       bookingsToday: bookingsToday || 0,
@@ -319,7 +366,10 @@ async function getDashboardData(): Promise<DashboardData> {
       totalBookingsTrend,
       assistant: assistant as Assistant,
       lastCallTime: lastCall?.started_at,
-      setupCompleted: tenant?.setup_completed || false
+      setupCompleted: tenant?.setup_completed || false,
+      automationActivities,
+      totalRecoveries: totalRecoveries || 0,
+      recoverySuccessRate
     }
   } catch (error: any) {
     console.error('Dashboard data fetch error:', error)
@@ -338,6 +388,15 @@ function formatPhoneNumber(phone: string): string {
   }
 
   return phone
+}
+
+function getTimeAgo(date: Date): string {
+  const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000)
+
+  if (seconds < 60) return 'Just now'
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`
+  return `${Math.floor(seconds / 86400)}d ago`
 }
 
 export default async function DashboardPage() {
@@ -570,6 +629,17 @@ export default async function DashboardPage() {
                 </a>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Automation Activity Feed - Only show if setup is completed */}
+        {data.setupCompleted && (
+          <div className="mb-8">
+            <AutomationActivityFeed
+              activities={data.automationActivities}
+              totalRecoveries={data.totalRecoveries}
+              successRate={data.recoverySuccessRate}
+            />
           </div>
         )}
 
