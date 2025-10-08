@@ -46,6 +46,7 @@ async function getCalls(): Promise<Call[]> {
     const tenantId = userRecord.tenant_id
 
     // Get all calls for this tenant
+    // Note: We're using a LEFT JOIN pattern for missed_call_rescues since it's optional
     const { data: calls, error } = await db
       .from('calls')
       .select(`
@@ -61,8 +62,7 @@ async function getCalls(): Promise<Call[]> {
         customer_city,
         customer_state,
         customer_zip,
-        bookings(name, phone),
-        missed_call_rescues(sms_sent, outcome)
+        bookings(name, phone)
       `)
       .eq('tenant_id', tenantId)
       .order('started_at', { ascending: false })
@@ -73,7 +73,24 @@ async function getCalls(): Promise<Call[]> {
       return []
     }
 
-    return calls || []
+    if (!calls || calls.length === 0) {
+      return []
+    }
+
+    // Fetch recovery attempts for these calls
+    const callIds = calls.map(c => c.id)
+    const { data: recoveries } = await db
+      .from('missed_call_rescues')
+      .select('original_call_id, sms_sent, outcome')
+      .in('original_call_id', callIds)
+
+    // Merge recovery data into calls
+    const callsWithRecoveries = calls.map(call => ({
+      ...call,
+      missed_call_rescues: recoveries?.filter(r => r.original_call_id === call.id) || []
+    }))
+
+    return callsWithRecoveries
   } catch (error) {
     console.error('Failed to fetch calls:', error)
     return []

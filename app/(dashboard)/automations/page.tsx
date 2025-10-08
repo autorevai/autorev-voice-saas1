@@ -256,14 +256,17 @@ export default async function AutomationsPage() {
                   {automation.enabled && !automation.locked && (
                     <div className="flex space-x-3">
                       <Link
-                        href={`/automations/${automation.id}`}
+                        href="/calls"
                         className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors text-center"
                       >
-                        View Details
+                        View Recovered Calls
                       </Link>
-                      <button className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
-                        Settings
-                      </button>
+                      <Link
+                        href="/dashboard"
+                        className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                      >
+                        Activity Feed
+                      </Link>
                     </div>
                   )}
                 </CardContent>
