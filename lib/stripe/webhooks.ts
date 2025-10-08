@@ -15,7 +15,7 @@ export interface WebhookEvent {
  * Verify webhook signature
  */
 export function verifyWebhookSignature(payload: string, signature: string) {
-  if (!STRIPE_CONFIG.WEBHOOK_SECRET) {
+  if (!STRIPE_CONFIG.webhookSecret) {
     throw new Error('STRIPE_WEBHOOK_SECRET is not set')
   }
 
@@ -23,7 +23,7 @@ export function verifyWebhookSignature(payload: string, signature: string) {
     const event = stripe.webhooks.constructEvent(
       payload,
       signature,
-      STRIPE_CONFIG.WEBHOOK_SECRET
+      STRIPE_CONFIG.webhookSecret
     )
     return event
   } catch (error) {
