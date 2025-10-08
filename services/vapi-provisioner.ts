@@ -144,13 +144,15 @@ export async function provisionVapiAssistant(
         assistantId: assistant.id,
         name: finalPhoneName,
         numberDesiredAreaCode: '740',
+        serverUrl: webhookUrl,
+        serverUrlSecret: webhookSecret,
         fallbackDestination: {
           type: 'number',
           number: config.profile.businessHours?.emergencyPhone?.startsWith('+1')
             ? config.profile.businessHours.emergencyPhone
             : `+1${config.profile.businessHours?.emergencyPhone || '8445551234'}`
         }
-      });
+      } as any);
       phoneNumber = phone.number;
       console.log('✅ Phone provisioned successfully:', phoneNumber);
       console.log('📞 Phone name:', finalPhoneName);
