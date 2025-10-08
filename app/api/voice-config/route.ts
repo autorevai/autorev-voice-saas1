@@ -39,6 +39,7 @@ export async function GET(req: NextRequest) {
 
     // Auto-populate config from industry if it doesn't exist
     let config: VoiceConfig = tenant?.voice_config as VoiceConfig
+    let hasPendingChanges = tenant?.voice_config_pending_changes || false
 
     if (!config && tenant?.industry) {
       // First time loading - auto-populate from industry
@@ -52,24 +53,29 @@ export async function GET(req: NextRequest) {
         keyInfo: defaultKeyInfo
       }
 
-      // Save the auto-populated config
+      // Save the auto-populated config WITHOUT marking as pending changes
+      // This is initialization, not a user edit
       await supabase
         .from('tenants')
         .update({
           voice_config: config,
-          voice_config_pending_changes: true
+          // Don't set pending_changes to true - this is just initialization
         })
         .eq('id', userRecord.tenant_id)
+
+      // Don't show "unpublished changes" for auto-population
+      hasPendingChanges = false
 
       console.log('[VOICE_CONFIG_API] Auto-populated config for industry:', industry)
     } else if (!config) {
       config = DEFAULT_VOICE_CONFIG
+      hasPendingChanges = false
     }
 
     return NextResponse.json({
       config,
       lastPublished: tenant?.voice_config_published_at,
-      hasPendingChanges: tenant?.voice_config_pending_changes || false
+      hasPendingChanges
     })
 
   } catch (error) {
