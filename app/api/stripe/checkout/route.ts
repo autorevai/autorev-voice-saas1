@@ -1,58 +1,57 @@
 import { NextRequest, NextResponse } from 'next/server'
-import Stripe from 'stripe'
 import { createClient } from '@/lib/supabase/server'
-import { STRIPE_CONFIG } from '@/lib/stripe/config'
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2024-12-18.acacia'
-})
+import { stripe, STRIPE_CONFIG } from '@/lib/stripe/config'
 
 export async function POST(req: NextRequest) {
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
-    
+
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const { planTier, tenantId } = await req.json()
-    
-    if (!planTier || !STRIPE_CONFIG.plans[planTier as keyof typeof STRIPE_CONFIG.plans]) {
+
+    if (!planTier || !tenantId) {
+      return NextResponse.json({ error: 'Missing planTier or tenantId' }, { status: 400 })
+    }
+
+    // Get the plan config
+    const plan = STRIPE_CONFIG.plans[planTier as keyof typeof STRIPE_CONFIG.plans]
+
+    if (!plan || !plan.priceId) {
       return NextResponse.json({ error: 'Invalid plan tier' }, { status: 400 })
     }
 
-    // Get or create tenant
+    // Get or create Stripe customer
     const { data: tenant } = await supabase
       .from('tenants')
-      .select('id, stripe_customer_id')
+      .select('stripe_customer_id')
       .eq('id', tenantId)
       .single()
 
-    if (!tenant) {
-      return NextResponse.json({ error: 'Tenant not found' }, { status: 404 })
-    }
+    let customerId = tenant?.stripe_customer_id
 
-    // Create or get Stripe customer
-    let customerId = tenant.stripe_customer_id
     if (!customerId) {
+      // Create Stripe customer
       const customer = await stripe.customers.create({
-        email: user.email!,
+        email: user.email,
         metadata: {
-          tenant_id: tenant.id,
+          tenant_id: tenantId,
           user_id: user.id
         }
       })
+
       customerId = customer.id
-      
+
+      // Save customer ID to tenant
       await supabase
         .from('tenants')
         .update({ stripe_customer_id: customerId })
-        .eq('id', tenant.id)
+        .eq('id', tenantId)
     }
 
-    const plan = STRIPE_CONFIG.plans[planTier as keyof typeof STRIPE_CONFIG.plans]
-    
     // Create checkout session
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
@@ -61,30 +60,24 @@ export async function POST(req: NextRequest) {
       line_items: [
         {
           price: plan.priceId,
-          quantity: 1
-        }
+          quantity: 1,
+        },
       ],
-      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?setup=success`,
-      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/pricing?canceled=true`,
+      success_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/pricing`,
       subscription_data: {
         trial_period_days: STRIPE_CONFIG.trial.durationDays,
         metadata: {
-          tenant_id: tenant.id,
-          plan_tier: planTier,
-          minutes_included: plan.minutesIncluded.toString()
-        }
+          tenant_id: tenantId,
+        },
       },
       metadata: {
-        tenant_id: tenant.id,
-        plan_tier: planTier
-      }
+        tenant_id: tenantId,
+        plan_tier: planTier,
+      },
     })
 
-    return NextResponse.json({ 
-      sessionId: session.id,
-      url: session.url 
-    })
-    
+    return NextResponse.json({ url: session.url })
   } catch (error) {
     console.error('Stripe checkout error:', error)
     return NextResponse.json(
