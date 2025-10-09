@@ -233,6 +233,16 @@ export async function POST(req: NextRequest) {
 
     // ⭐️ Send SMS confirmation
     try {
+      // Format date and time from the booking start_ts
+      const startDate = new Date(bookingStartTime);
+      const formattedDate = startDate.toISOString().split('T')[0]; // YYYY-MM-DD
+      const hours = startDate.getHours();
+      const minutes = startDate.getMinutes();
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      const displayHours = hours % 12 || 12;
+      const displayMinutes = minutes.toString().padStart(2, '0');
+      const formattedTime = `${displayHours}:${displayMinutes} ${ampm}`;
+
       await sendBookingConfirmation({
         id: booking.id,
         confirmation: booking.confirmation,
@@ -240,8 +250,8 @@ export async function POST(req: NextRequest) {
         phone: booking.phone,
         address: booking.address,
         service_type: booking.summary,
-        preferred_date: sanitized.preferred_date || new Date().toISOString().split('T')[0],
-        preferred_time: sanitized.preferred_time || 'TBD',
+        preferred_date: formattedDate,
+        preferred_time: sanitized.preferred_time || formattedTime,
         tenant_id: booking.tenant_id,
         email: booking.email,
         notes: booking.equipment
