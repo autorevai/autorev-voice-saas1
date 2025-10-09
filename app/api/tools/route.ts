@@ -3,6 +3,8 @@ import { createClient } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
 import { validateBookingData } from '@/lib/validation';
 import { getOrCreateRequestId, createLogger } from '@/lib/request-id';
+import { getAvailableSlots, checkSlotAvailable, createCalendarEvent } from '@/lib/google/calendar';
+import { sendBookingConfirmation } from '@/lib/sms/booking-confirmation';
 
 export async function POST(req: NextRequest) {
   const startTime = Date.now();
@@ -53,6 +55,66 @@ export async function POST(req: NextRequest) {
     if (!tenantId) {
       tenantId = process.env.DEMO_TENANT_ID || null;
     }
+
+  // ⭐️ NEW: Check availability tool
+  if (tool === 'check_availability') {
+    log.info('Processing check_availability tool', {
+      tool,
+      callId,
+      tenantId,
+      rawArgs: args
+    });
+
+    const extraction = extractToolData(args, 'check_availability');
+    const { date, service_type } = extraction.data;
+
+    try {
+      const requestedDate = new Date(date);
+      const availableSlots = await getAvailableSlots(
+        tenantId!,
+        requestedDate,
+        60 // 60 minutes default duration
+      );
+
+      if (availableSlots.length === 0) {
+        log.info('No availability for requested date', { date });
+        return NextResponse.json({
+          success: true,
+          available: false,
+          say: "I don't have any availability for that date. Would you like to check a different day?",
+          requestId,
+          duration: Date.now() - startTime
+        });
+      }
+
+      // Return top 3 available slots
+      const topSlots = availableSlots.slice(0, 3);
+
+      log.info('Found available slots', {
+        date,
+        totalSlots: availableSlots.length,
+        topSlots
+      });
+
+      return NextResponse.json({
+        success: true,
+        available: true,
+        slots: topSlots,
+        say: `I have the following times available on ${date}: ${topSlots.join(', ')}. Which works best for you?`,
+        requestId,
+        duration: Date.now() - startTime
+      });
+    } catch (error: any) {
+      log.error('Availability check failed', { error: error.message });
+      return NextResponse.json({
+        success: true,
+        available: true,
+        say: "I'm having trouble checking the calendar right now, but let me book you anyway and we'll confirm the exact time shortly.",
+        requestId,
+        duration: Date.now() - startTime
+      });
+    }
+  }
 
   if (tool === 'create_booking') {
     // Extract data from VAPI message format
@@ -140,6 +202,60 @@ export async function POST(req: NextRequest) {
 
     console.log('✅ Booking created:', confirmation, '/', sanitized.name);
 
+    // ⭐️ Create Google Calendar event
+    try {
+      const calendarEvent = await createCalendarEvent(tenantId!, {
+        customer_name: sanitized.name,
+        service: sanitized.service_type || booking.summary,
+        start_time: new Date(bookingStartTime),
+        duration_minutes: 60,
+        customer_phone: sanitized.phone,
+        customer_email: sanitized.email,
+        notes: sanitized.notes
+      });
+
+      // Store calendar event ID
+      if (calendarEvent) {
+        await db
+          .from('bookings')
+          .update({ google_calendar_event_id: calendarEvent.id })
+          .eq('id', booking.id);
+
+        log.info('Calendar event created', {
+          bookingId: booking.id,
+          calendarEventId: calendarEvent.id
+        });
+      }
+    } catch (calError: any) {
+      log.error('Calendar sync failed', { error: calError.message });
+      // Don't fail booking if calendar sync fails
+    }
+
+    // ⭐️ Send SMS confirmation
+    try {
+      await sendBookingConfirmation({
+        id: booking.id,
+        confirmation: booking.confirmation,
+        name: booking.name,
+        phone: booking.phone,
+        address: booking.address,
+        service_type: booking.summary,
+        preferred_date: sanitized.preferred_date || new Date().toISOString().split('T')[0],
+        preferred_time: sanitized.preferred_time || 'TBD',
+        tenant_id: booking.tenant_id,
+        email: booking.email,
+        notes: booking.equipment
+      });
+
+      log.info('SMS confirmation sent', {
+        bookingId: booking.id,
+        phone: booking.phone
+      });
+    } catch (smsError: any) {
+      log.error('SMS send failed', { error: smsError.message });
+      // Don't fail booking if SMS fails
+    }
+
     // Update calls table outcome to 'booked' immediately
     if (dbCallId) {
       await db
@@ -199,7 +315,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       confirmation: confirmation,
-      say: `Perfect! Your appointment is confirmed. We'll see you ${speakableTime}. Is there anything else I can help you with?`,
+      say: `Perfect! Your appointment is confirmed for ${speakableTime}. Your confirmation code is ${confirmation}. I've sent you a text message with all the details and a link to add it to your calendar. Is there anything else I can help you with?`,
       booking_id: booking.id,
       requestId,
       duration
