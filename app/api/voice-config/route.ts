@@ -72,6 +72,12 @@ export async function GET(req: NextRequest) {
       hasPendingChanges = false
     }
 
+    // If config exists but was never published, show it as unpublished
+    // (This handles fresh signups and script-created tenants)
+    if (config && !tenant?.voice_config_published_at) {
+      hasPendingChanges = true
+    }
+
     return NextResponse.json({
       config,
       lastPublished: tenant?.voice_config_published_at,
