@@ -3,16 +3,26 @@
 import { BusinessProfileForm } from './components/BusinessProfileForm'
 import { VoiceConfigForm } from './components/VoiceConfigForm'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Settings } from 'lucide-react'
+import { Settings, Calendar } from 'lucide-react'
+import Link from 'next/link'
 
 export default function SettingsPage() {
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Header */}
       <div className="mb-8">
-        <div className="flex items-center space-x-3 mb-2">
-          <Settings className="w-8 h-8 text-gray-600" />
-          <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center space-x-3">
+            <Settings className="w-8 h-8 text-gray-600" />
+            <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
+          </div>
+          <Link
+            href="/settings/integrations"
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
+          >
+            <Calendar className="w-4 h-4" />
+            Integrations
+          </Link>
         </div>
         <p className="text-gray-600">
           Manage your business profile and AI receptionist configuration
