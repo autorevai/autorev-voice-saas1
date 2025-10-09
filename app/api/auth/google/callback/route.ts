@@ -93,14 +93,15 @@ export async function GET(req: NextRequest) {
       .eq('id', authData.user.id)
 
     // Redirect based on state
-    if (state === 'signup') {
-      return NextResponse.redirect(new URL('/onboarding', req.url))
-    } else if (state === 'connect_calendar') {
+    if (state === 'connect_calendar') {
+      // Calendar connection from settings
       return NextResponse.redirect(
         new URL('/settings?calendar_connected=true', req.url)
       )
     }
 
+    // Both signup and existing users go to dashboard
+    // Dashboard shows setup wizard if tenant.setup_completed is false
     return NextResponse.redirect(new URL('/dashboard', req.url))
 
   } catch (error: any) {

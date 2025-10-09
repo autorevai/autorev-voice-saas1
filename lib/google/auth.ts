@@ -8,16 +8,27 @@ const oauth2Client = new google.auth.OAuth2(
     : process.env.GOOGLE_REDIRECT_URI
 )
 
-export const GOOGLE_SCOPES = [
+// Basic scopes for signup/login
+export const GOOGLE_BASIC_SCOPES = [
   'https://www.googleapis.com/auth/userinfo.email',
   'https://www.googleapis.com/auth/userinfo.profile',
+]
+
+// Calendar scopes for calendar integration
+export const GOOGLE_CALENDAR_SCOPES = [
+  ...GOOGLE_BASIC_SCOPES,
   'https://www.googleapis.com/auth/calendar.events',
 ]
 
 export function getGoogleAuthUrl(state?: string) {
+  // Use basic scopes for signup, full scopes for calendar connection
+  const scopes = state === 'connect_calendar'
+    ? GOOGLE_CALENDAR_SCOPES
+    : GOOGLE_BASIC_SCOPES
+
   return oauth2Client.generateAuthUrl({
     access_type: 'offline',
-    scope: GOOGLE_SCOPES,
+    scope: scopes,
     prompt: 'consent', // Force refresh token
     state: state || 'signup', // 'signup' or 'connect_calendar'
   })
