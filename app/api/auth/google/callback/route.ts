@@ -79,7 +79,7 @@ export async function GET(req: NextRequest) {
       throw new Error(signUpError?.message || 'Failed to create user')
     }
 
-    // Store Google tokens
+    // Store Google tokens (no tenant yet - will be created in onboarding)
     await db
       .from('users')
       .update({
@@ -100,9 +100,8 @@ export async function GET(req: NextRequest) {
       )
     }
 
-    // Both signup and existing users go to dashboard
-    // Dashboard shows setup wizard if tenant.setup_completed is false
-    return NextResponse.redirect(new URL('/dashboard', req.url))
+    // New users go to onboarding to create tenant (same as email/password signup)
+    return NextResponse.redirect(new URL('/onboarding', req.url))
 
   } catch (error: any) {
     console.error('Google OAuth error:', error)
