@@ -1,8 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { PhoneCall, Moon, CreditCard, Star, Zap, TrendingUp, Clock, MessageSquare } from 'lucide-react'
+import { PhoneCall, Moon, CreditCard, Star, Zap, TrendingUp, Clock, MessageSquare, Info } from 'lucide-react'
 import Link from 'next/link'
+import { AutomationCard } from './components/AutomationCard'
 
 interface AutomationStats {
   smartCallRecovery: {
@@ -114,6 +115,14 @@ export default async function AutomationsPage() {
       id: 'smart-call-recovery',
       title: 'Smart Call Recovery',
       description: 'Rescue missed calls with intelligent SMS follow-up and urgency detection',
+      longDescription: 'Automatically detects missed calls and sends personalized SMS messages to recover potential bookings. Uses AI to analyze call transcripts for urgency signals and adapts the follow-up strategy accordingly.',
+      howItWorks: [
+        'Detects when calls are missed or abandoned',
+        'Analyzes transcript for urgency keywords (emergency, urgent, broken, etc.)',
+        'Sends personalized SMS with detected issue details',
+        'Urgent calls get immediate callback (30s), normal calls get 5-minute callback',
+        'Tracks recovery success rate and ROI'
+      ],
       icon: PhoneCall,
       color: 'blue',
       enabled: stats.smartCallRecovery.enabled,
@@ -124,12 +133,21 @@ export default async function AutomationsPage() {
         { label: 'Total Rescued', value: stats.smartCallRecovery.totalRescued }
       ],
       impact: '40-60% recovery rate',
-      badge: 'Active'
+      badge: 'Active',
+      canToggle: true
     },
     {
       id: 'after-hours',
       title: '24/7 Smart Scheduling',
       description: 'Book emergency appointments after hours at premium rates',
+      longDescription: 'Automatically handles after-hours and weekend calls, offering premium emergency slots at higher rates. Integrates with your calendar to ensure proper coverage and maximizes revenue from urgent situations.',
+      howItWorks: [
+        'Detects calls outside normal business hours',
+        'Offers premium emergency appointment slots',
+        'Applies configurable after-hours pricing multiplier (1.5x-2.5x)',
+        'Syncs with Google Calendar for availability',
+        'Sends emergency booking confirmations with premium pricing details'
+      ],
       icon: Moon,
       color: 'purple',
       enabled: stats.afterHours.enabled,
@@ -139,12 +157,22 @@ export default async function AutomationsPage() {
       ],
       impact: '+15% revenue lift',
       badge: 'Coming Soon',
-      locked: true
+      locked: true,
+      canToggle: false
     },
     {
       id: 'text-to-pay',
       title: 'Text-to-Pay Deposits',
       description: 'Secure bookings with automated deposit collection via SMS',
+      longDescription: 'Reduces no-shows by automatically collecting deposits via SMS payment links. Sends secure Stripe payment links immediately after booking, with friendly reminders if not paid within the configured timeframe.',
+      howItWorks: [
+        'Automatically sends SMS payment link after booking creation',
+        'Integrates with Stripe for secure payment processing',
+        'Sends friendly reminder if deposit not paid within 2 hours',
+        'Configurable deposit amount (fixed or percentage)',
+        'Automatically cancels unpaid bookings after 24 hours',
+        'Sends payment receipts and confirmation'
+      ],
       icon: CreditCard,
       color: 'green',
       enabled: stats.textToPay.enabled,
@@ -153,12 +181,22 @@ export default async function AutomationsPage() {
       ],
       impact: '25% reduction in no-shows',
       badge: 'Coming Soon',
-      locked: true
+      locked: true,
+      canToggle: false
     },
     {
       id: 'review-engine',
       title: 'Review Engine',
       description: 'Automated review requests to happy customers',
+      longDescription: 'Automatically identifies satisfied customers and sends personalized review requests at the optimal time. Uses sentiment analysis on call transcripts to only request reviews from positive interactions.',
+      howItWorks: [
+        'Analyzes call sentiment to identify happy customers',
+        'Waits 24-48 hours after service completion',
+        'Sends personalized SMS with direct review link',
+        'Routes to Google, Yelp, or custom review platforms',
+        'Sends gentle reminder if no review after 3 days',
+        'Tracks review generation rate and response times'
+      ],
       icon: Star,
       color: 'amber',
       enabled: stats.reviewEngine.enabled,
@@ -167,7 +205,8 @@ export default async function AutomationsPage() {
       ],
       impact: '3-5x more reviews',
       badge: 'Coming Soon',
-      locked: true
+      locked: true,
+      canToggle: false
     }
   ]
 
@@ -200,77 +239,14 @@ export default async function AutomationsPage() {
         {/* Automation Cards Grid */}
         <div className="grid md:grid-cols-2 gap-6">
           {automations.map((automation) => {
-            const Icon = automation.icon
             const colorClass = colorClasses[automation.color as keyof typeof colorClasses]
 
             return (
-              <Card key={automation.id} className="relative overflow-hidden hover:shadow-lg transition-shadow">
-                {automation.locked && (
-                  <div className="absolute inset-0 bg-gray-50/50 backdrop-blur-[2px] z-10 flex items-center justify-center">
-                    <div className="bg-white rounded-lg shadow-lg p-6 text-center">
-                      <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                        <Moon className="w-6 h-6 text-purple-600" />
-                      </div>
-                      <h4 className="font-semibold text-gray-900 mb-2">Coming Soon</h4>
-                      <p className="text-sm text-gray-600">This automation will be available soon!</p>
-                    </div>
-                  </div>
-                )}
-
-                <CardHeader>
-                  <div className="flex items-start justify-between mb-4">
-                    <div className={`p-3 rounded-lg ${colorClass} border`}>
-                      <Icon className="w-6 h-6" />
-                    </div>
-                    <Badge
-                      className={automation.enabled ? 'bg-green-100 text-green-800 border-green-200' : 'bg-gray-100 text-gray-800 border-gray-200'}
-                    >
-                      {automation.badge}
-                    </Badge>
-                  </div>
-
-                  <CardTitle className="text-xl">{automation.title}</CardTitle>
-                  <CardDescription className="text-sm mt-2">
-                    {automation.description}
-                  </CardDescription>
-                </CardHeader>
-
-                <CardContent>
-                  {/* Stats Grid */}
-                  <div className="grid grid-cols-2 gap-4 mb-4">
-                    {automation.stats.map((stat, idx) => (
-                      <div key={idx} className="bg-gray-50 rounded-lg p-3">
-                        <p className="text-xs text-gray-500 mb-1">{stat.label}</p>
-                        <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Impact Badge */}
-                  <div className="flex items-center space-x-2 mb-4">
-                    <TrendingUp className="w-4 h-4 text-green-600" />
-                    <span className="text-sm font-medium text-green-600">{automation.impact}</span>
-                  </div>
-
-                  {/* Action Buttons */}
-                  {automation.enabled && !automation.locked && (
-                    <div className="flex space-x-3">
-                      <Link
-                        href="/calls"
-                        className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors text-center"
-                      >
-                        View Recovered Calls
-                      </Link>
-                      <Link
-                        href="/dashboard"
-                        className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-                      >
-                        Activity Feed
-                      </Link>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+              <AutomationCard
+                key={automation.id}
+                automation={automation}
+                colorClass={colorClass}
+              />
             )
           })}
         </div>

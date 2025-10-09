@@ -4,6 +4,7 @@
 
 import { createClient } from '@/lib/supabase/client'
 import { sendSMS } from '@/lib/twilio/sms'
+import { scheduleUrgentCallback, scheduleNormalCallback } from '@/lib/vapi/outbound-calls'
 
 export interface SmartCallRecoveryOptions {
   tenantId: string
@@ -192,6 +193,40 @@ export async function executeSmartCallRecovery(
       console.error('❌ SMS error:', smsError)
     }
 
+    // Schedule VAPI outbound callback
+    let callbackScheduled = false
+    let vapiCallId: string | undefined
+
+    try {
+      const callbackResult = urgencyAnalysis.isUrgent
+        ? await scheduleUrgentCallback(
+            tenantId,
+            customerPhone,
+            customerName,
+            urgencyAnalysis.detectedIssue
+          )
+        : await scheduleNormalCallback(
+            tenantId,
+            customerPhone,
+            customerName,
+            urgencyAnalysis.detectedIssue
+          )
+
+      if (callbackResult.success) {
+        callbackScheduled = true
+        vapiCallId = callbackResult.callId
+        console.log('✅ Callback scheduled:', {
+          callId: callbackResult.callId,
+          scheduledFor: callbackResult.scheduledFor,
+          isUrgent: urgencyAnalysis.isUrgent
+        })
+      } else {
+        console.error('❌ Failed to schedule callback:', callbackResult.error)
+      }
+    } catch (callbackError) {
+      console.error('❌ Callback scheduling error:', callbackError)
+    }
+
     // Log recovery attempt
     const { data: rescue, error: rescueError } = await supabase
       .from('missed_call_rescues')
@@ -200,7 +235,8 @@ export async function executeSmartCallRecovery(
         original_call_id: callId,
         customer_phone: customerPhone,
         sms_sent: smsSent,
-        callback_made: false,
+        callback_made: callbackScheduled,
+        callback_vapi_call_id: vapiCallId || null,
         outcome: null
       })
       .select()
@@ -209,11 +245,6 @@ export async function executeSmartCallRecovery(
     if (rescueError) {
       console.error('❌ Failed to log recovery:', rescueError)
     }
-
-    // TODO: Schedule VAPI outbound callback
-    // Urgent: 30 seconds
-    // Normal: 5 minutes
-    const callbackScheduled = false
 
     console.log('✅ Smart Call Recovery completed:', {
       rescueId: rescue?.id,
