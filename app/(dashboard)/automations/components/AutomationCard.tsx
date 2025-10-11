@@ -4,9 +4,8 @@ import { useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
-import { TrendingUp, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react'
+import { TrendingUp, ChevronDown, ChevronUp, AlertCircle, PhoneCall, Moon, CreditCard, Star } from 'lucide-react'
 import Link from 'next/link'
-import { LucideIcon } from 'lucide-react'
 
 interface AutomationCardProps {
   automation: {
@@ -15,7 +14,7 @@ interface AutomationCardProps {
     description: string
     longDescription?: string
     howItWorks?: string[]
-    icon: LucideIcon
+    iconName: string
     color: string
     enabled: boolean
     stats: { label: string; value: string | number }[]
@@ -27,13 +26,20 @@ interface AutomationCardProps {
   colorClass: string
 }
 
+const iconMap = {
+  PhoneCall,
+  Moon,
+  CreditCard,
+  Star
+}
+
 export function AutomationCard({ automation, colorClass }: AutomationCardProps) {
   const [enabled, setEnabled] = useState(automation.enabled)
   const [toggling, setToggling] = useState(false)
   const [showDetails, setShowDetails] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const Icon = automation.icon
+  const Icon = iconMap[automation.iconName as keyof typeof iconMap]
 
   async function handleToggle() {
     if (automation.locked || !automation.canToggle) return

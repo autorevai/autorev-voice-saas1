@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { PhoneCall, Moon, CreditCard, Star, Zap, TrendingUp, Clock, MessageSquare, Info } from 'lucide-react'
+import { Zap, Clock, MessageSquare } from 'lucide-react'
 import Link from 'next/link'
 import { AutomationCard } from './components/AutomationCard'
 
@@ -123,7 +123,7 @@ export default async function AutomationsPage() {
         'Urgent calls get immediate callback (30s), normal calls get 5-minute callback',
         'Tracks recovery success rate and ROI'
       ],
-      icon: PhoneCall,
+      iconName: 'PhoneCall',
       color: 'blue',
       enabled: stats.smartCallRecovery.enabled,
       stats: [
@@ -148,7 +148,7 @@ export default async function AutomationsPage() {
         'Syncs with Google Calendar for availability',
         'Sends emergency booking confirmations with premium pricing details'
       ],
-      icon: Moon,
+      iconName: 'Moon',
       color: 'purple',
       enabled: stats.afterHours.enabled,
       stats: [
@@ -173,7 +173,7 @@ export default async function AutomationsPage() {
         'Automatically cancels unpaid bookings after 24 hours',
         'Sends payment receipts and confirmation'
       ],
-      icon: CreditCard,
+      iconName: 'CreditCard',
       color: 'green',
       enabled: stats.textToPay.enabled,
       stats: [
@@ -197,7 +197,7 @@ export default async function AutomationsPage() {
         'Sends gentle reminder if no review after 3 days',
         'Tracks review generation rate and response times'
       ],
-      icon: Star,
+      iconName: 'Star',
       color: 'amber',
       enabled: stats.reviewEngine.enabled,
       stats: [
